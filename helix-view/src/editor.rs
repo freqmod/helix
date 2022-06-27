@@ -489,6 +489,7 @@ impl Default for StatusLineConfig {
                 E::Register,
                 E::Position,
                 E::FileEncoding,
+                E::WindowIdentifiers,
             ],
             separator: String::from("│"),
             mode: ModeConfig::default(),
@@ -579,6 +580,9 @@ pub enum StatusLineElement {
 
     /// Indicator for selected register
     Register,
+
+    /// An identifier of the window, for jumping directly to a window using a shortcut
+    WindowIdentifiers,
 }
 
 // Cursor shape is read and used on every rendered frame and so needs
@@ -1051,6 +1055,7 @@ pub struct Editor {
 
     pub status_msg: Option<(Cow<'static, str>, Severity)>,
     pub autoinfo: Option<Info>,
+    pub show_window_ids: bool,
 
     pub config: Arc<dyn DynAccess<Config>>,
     pub auto_pairs: Option<AutoPairs>,
@@ -1185,6 +1190,7 @@ impl Editor {
             registers: Registers::default(),
             status_msg: None,
             autoinfo: None,
+            show_window_ids: false,
             idle_timer: Box::pin(sleep(conf.idle_timeout)),
             redraw_timer: Box::pin(sleep(Duration::MAX)),
             last_motion: None,

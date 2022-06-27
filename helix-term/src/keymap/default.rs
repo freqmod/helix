@@ -186,7 +186,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "C-u" => page_cursor_half_up,
         "C-d" => page_cursor_half_down,
 
-        "C-w" => { "Window"
+        "C-w" => { "Window" show_window_ids=true
             "C-w" | "w" => rotate_view,
             "C-s" | "s" => hsplit,
             "C-v" | "v" => vsplit,
@@ -251,7 +251,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
                 "e" => dap_enable_exceptions,
                 "E" => dap_disable_exceptions,
             },
-            "w" => { "Window"
+            "w" => { "Window" show_window_ids=true
                 "C-w" | "w" => rotate_view,
                 "C-s" | "s" => hsplit,
                 "C-v" | "v" => vsplit,

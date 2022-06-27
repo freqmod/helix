@@ -25,6 +25,7 @@ pub struct KeyTrieNode {
     map: HashMap<KeyEvent, KeyTrie>,
     order: Vec<KeyEvent>,
     pub is_sticky: bool,
+    pub show_window_ids: bool,
 }
 
 impl<'de> Deserialize<'de> for KeyTrieNode {
@@ -49,6 +50,7 @@ impl KeyTrieNode {
             map,
             order,
             is_sticky: false,
+            show_window_ids: false,
         }
     }
 
