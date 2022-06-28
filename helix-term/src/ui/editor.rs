@@ -28,8 +28,7 @@ use helix_view::{
     graphics::{Color, CursorKind, Modifier, Rect, Style},
     input::{KeyEvent, MouseButton, MouseEvent, MouseEventKind},
     keyboard::{KeyCode, KeyModifiers},
-    Document, Editor, Theme, View,
-    view_index_to_identifier,
+    view_index_to_identifier, Document, Editor, Theme, View,
 };
 use std::{mem::take, num::NonZeroUsize, path::PathBuf, rc::Rc, sync::Arc};
 
@@ -907,13 +906,13 @@ impl EditorView {
         match &key_result {
             KeymapResult::Matched(command) => {
                 execute_command(command);
-            },
+            }
             KeymapResult::Pending(node) => {
                 cxt.editor.autoinfo = Some(node.infobox());
                 if node.show_window_ids {
                     cxt.editor.show_window_ids = true;
                 }
-            },
+            }
             KeymapResult::MatchedSequence(commands) => {
                 for command in commands {
                     execute_command(command);
@@ -952,9 +951,10 @@ impl EditorView {
     }
 
     fn command_mode(&mut self, mode: Mode, cxt: &mut commands::Context, event: KeyEvent) {
+        let in_minor_mode = cxt.editor.autoinfo.is_some();
         match (event, cxt.editor.count) {
             // If the count is already started and the input is a number, always continue the count.
-            (key!(i @ '0'..='9'), Some(count)) => {
+            (key!(i @ '0'..='9'), Some(count)) if !in_minor_mode => {
                 let i = i.to_digit(10).unwrap() as usize;
                 let count = count.get() * 10 + i;
                 if count > 100_000_000 {
