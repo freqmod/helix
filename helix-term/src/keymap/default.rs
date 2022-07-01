@@ -186,7 +186,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "C-u" => page_cursor_half_up,
         "C-d" => page_cursor_half_down,
 
-        "C-w" => { "Window" show_window_ids=true
+        "C-w" => { "Window"
             "C-w" | "w" => rotate_view,
             "C-s" | "s" => hsplit,
             "C-v" | "v" => vsplit,
@@ -207,16 +207,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
                 "C-s" | "s" => hsplit_new,
                 "C-v" | "v" => vsplit_new,
             },
-            "0" => goto_window_idx_0,
-            "1" => goto_window_idx_1,
-            "2" => goto_window_idx_2,
-            "3" => goto_window_idx_3,
-            "4" => goto_window_idx_4,
-            "5" => goto_window_idx_5,
-            "6" => goto_window_idx_6,
-            "7" => goto_window_idx_7,
-            "8" => goto_window_idx_8,
-            "9" => goto_window_idx_9,
+            "i" => goto_window_idx,
         },
 
         // move under <space>c
@@ -261,7 +252,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
                 "e" => dap_enable_exceptions,
                 "E" => dap_disable_exceptions,
             },
-            "w" => { "Window" show_window_ids=true
+            "w" => { "Window"
                 "C-w" | "w" => rotate_view,
                 "C-s" | "s" => hsplit,
                 "C-v" | "v" => vsplit,
@@ -282,16 +273,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
                     "C-s" | "s" => hsplit_new,
                     "C-v" | "v" => vsplit_new,
                 },
-                "0" => goto_window_idx_0,
-                "1" => goto_window_idx_1,
-                "2" => goto_window_idx_2,
-                "3" => goto_window_idx_3,
-                "4" => goto_window_idx_4,
-                "5" => goto_window_idx_5,
-                "6" => goto_window_idx_6,
-                "7" => goto_window_idx_7,
-                "8" => goto_window_idx_8,
-                "9" => goto_window_idx_9,
+                "i" => goto_window_idx,
             },
             "y" => yank_to_clipboard,
             "Y" => yank_main_selection_to_clipboard,
