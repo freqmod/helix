@@ -47,8 +47,7 @@ use helix_view::{
     theme::Style,
     tree,
     view::View,
-    Document, DocumentId, Editor, ViewId,
-    view_identifier_to_index,
+    view_identifier_to_index, Document, DocumentId, Editor, ViewId,
 };
 
 use anyhow::{anyhow, bail, ensure, Context as _};
@@ -5128,8 +5127,7 @@ fn goto_window_idx(cx: &mut Context) {
             ..
         } = event
         {
-            if let Some(view_index) =  view_identifier_to_index(ch)
-            {
+            if let Some(view_index) = view_identifier_to_index(ch) {
                 cx.editor.focus_view_idx(view_index);
             }
         }
