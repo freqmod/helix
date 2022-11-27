@@ -1293,7 +1293,7 @@ impl Editor {
         self.focus(self.tree.next());
     }
 
-   pub fn focus_view_idx(&mut self, idx: usize) {
+    pub fn focus_view_idx(&mut self, idx: usize) {
         self.tree.focus_view_idx(idx);
     }
 
