@@ -269,7 +269,7 @@ This layer is similar to Vim keybindings as Kakoune does not support windows.
 | `J`                    | Swap window downwards                                | `swap_view_down`  |
 | `K`                    | Swap window upwards                                  | `swap_view_up`    |
 | `L`                    | Swap window to the right                             | `swap_view_right` |
-| `i` `<char>`           | Switch to window with index char (1-9) as shown      | `goto_window_idx` |
+| `i` `<char>`           | Switch to window with index char (1-9a-z) as shown      | `goto_window_idx` |
 
 
 #### Space mode
