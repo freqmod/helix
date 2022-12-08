@@ -347,6 +347,8 @@ impl MappableCommand {
         diagnostics_picker, "Open diagnostic picker",
         workspace_diagnostics_picker, "Open workspace diagnostic picker",
         last_picker, "Open last picker",
+        enter_insert_mode, "Enter insert mode at current cursor position",
+        insert_at_cursor, "Enter insert mode at current cursor position, removing current selection",
         insert_at_line_start, "Insert at start of line",
         insert_at_line_end, "Insert at end of line",
         open_below, "Open new line below selection",
@@ -3208,8 +3210,15 @@ enum IndentFallbackPos {
     LineEnd,
 }
 
+.
+// Change to insert mode at the current cursor, collapsing the current selection
+fn insert_at_cursor(cx: &mut Context) {
+    collapse_selection(cx);
+    enter_insert_mode(cx);
+}
+
 // `I` inserts at the first nonwhitespace character of each line with a selection.
-// If the line is empty, automatically indent.
+// If the line is empty, automatically indent
 fn insert_at_line_start(cx: &mut Context) {
     insert_with_indent(cx, IndentFallbackPos::LineStart);
 }

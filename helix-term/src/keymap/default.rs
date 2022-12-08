@@ -63,6 +63,8 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         ":" => command_mode,
 
         "i" => insert_mode,
+        "C-e" => insert_at_cursor,
+        "C-n" => enter_insert_mode,
         "I" => insert_at_line_start,
         "a" => append_mode,
         "A" => insert_at_line_end,
