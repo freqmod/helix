@@ -314,6 +314,8 @@ impl MappableCommand {
         search_prev, "Select previous search match",
         extend_search_next, "Add next search match to selection",
         extend_search_prev, "Add previous search match to selection",
+        extend_search_next_skip, "Add next search match to selection, but skip the current",
+        extend_search_prev_skip, "Add previous search match to selection, but skip the current",
         search_selection, "Use current selection as search pattern",
         make_search_word_bounded, "Modify current search to make it word bounded",
         global_search, "Global search in workspace folder",
@@ -2121,6 +2123,30 @@ fn searcher(cx: &mut Context, direction: Direction) {
     );
 }
 
+fn extract_current_primary_selection(cx: &mut Context) -> Range {
+    let (view, doc) = current!(cx.editor);
+    doc.selection(view.id).primary()
+}
+
+fn search_next_or_prev_skip_last(cx: &mut Context, old_selection: Range) {
+    /* Skip the previous selection in the direction that the search is performed */
+    let (view, doc) = current!(cx.editor);
+    let current_selection = doc.selection(view.id);
+    let selections_len = current_selection.ranges().len();
+    if selections_len > 2 {
+        /* Look trough selection list and see if there is a selection that matches the old one present */
+        if let Some(old_selection_index) = current_selection
+            .ranges()
+            .iter()
+            .position(|s| s == &old_selection)
+        {
+            let mut new_selection = current_selection.clone();
+            new_selection = new_selection.remove(old_selection_index);
+            doc.set_selection(view.id, new_selection);
+        }
+    }
+}
+
 fn search_next_or_prev_impl(cx: &mut Context, movement: Movement, direction: Direction) {
     let count = cx.count();
     let register = cx
@@ -2175,6 +2201,18 @@ fn extend_search_next(cx: &mut Context) {
 
 fn extend_search_prev(cx: &mut Context) {
     search_next_or_prev_impl(cx, Movement::Extend, Direction::Backward);
+}
+
+fn extend_search_next_skip(cx: &mut Context) {
+    let primary_selection_before_search = extract_current_primary_selection(cx);
+    search_next_or_prev_impl(cx, Movement::Extend, Direction::Forward);
+    search_next_or_prev_skip_last(cx, primary_selection_before_search);
+}
+
+fn extend_search_prev_skip(cx: &mut Context) {
+    let primary_selection_before_search = extract_current_primary_selection(cx);
+    search_next_or_prev_impl(cx, Movement::Extend, Direction::Backward);
+    search_next_or_prev_skip_last(cx, primary_selection_before_search);
 }
 
 fn search_selection(cx: &mut Context) {

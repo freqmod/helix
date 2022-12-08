@@ -356,6 +356,8 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
 
         "n" => extend_search_next,
         "N" => extend_search_prev,
+        "C-k" => extend_search_next_skip,
+        "A-k" => extend_search_prev_skip,
 
         "t" => extend_till_char,
         "f" => extend_next_char,
