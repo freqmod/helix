@@ -25,6 +25,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
 
         "home" => goto_line_start,
         "end" => goto_line_end,
+        "S-home" => goto_first_nonwhitespace,
 
         "w" => move_next_word_start,
         "b" => move_prev_word_start,
@@ -367,6 +368,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "home" => extend_to_line_start,
         "end" => extend_to_line_end,
         "esc" => exit_select_mode,
+        "S-home" => goto_first_nonwhitespace,
 
         "v" => normal_mode,
         "g" => { "Goto"
@@ -382,8 +384,8 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "C-x" => completion,
         "C-r" => insert_register,
 
-        "C-w" | "A-backspace" => delete_word_backward,
-        "A-d" | "A-del" => delete_word_forward,
+        "C-w" | "A-backspace" | "C-backspace" => delete_word_backward,
+        "A-d" | "A-del" | "C-del" => delete_word_forward,
         "C-u" => kill_to_line_start,
         "C-k" => kill_to_line_end,
         "C-h" | "backspace" | "S-backspace" => delete_char_backward,
@@ -400,6 +402,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "pagedown" => page_down,
         "home" => goto_line_start,
         "end" => goto_line_end_newline,
+        "S-home" => goto_first_nonwhitespace,
     });
     hashmap!(
         Mode::Normal => normal,
