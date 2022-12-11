@@ -367,6 +367,7 @@ impl MappableCommand {
         goto_file_start, "Goto line number <n> else file start",
         goto_file_end, "Goto file end",
         goto_file, "Goto files/URLs in selections",
+        goto_column_number, "Goto column number <n> else line start",
         goto_file_hsplit, "Goto files in selections (hsplit)",
         goto_file_vsplit, "Goto files in selections (vsplit)",
         goto_reference, "Goto references",
@@ -393,6 +394,8 @@ impl MappableCommand {
         goto_line_end_newline, "Goto newline at line end",
         goto_first_nonwhitespace, "Goto first non-blank in line",
         trim_selections, "Trim whitespace from selections",
+        undo_selection, "Undo selection change",
+        redo_selection, "Redo selection change",
         extend_to_line_start, "Extend to line start",
         extend_to_first_nonwhitespace, "Extend to first non-blank in line",
         extend_to_line_end, "Extend to line end",
@@ -812,6 +815,25 @@ fn goto_line_start(cx: &mut Context) {
     )
 }
 
+fn goto_column_number(cx: &mut Context) {
+    if let Some(column_count) = cx.count {
+        let (view, doc) = current!(cx.editor);
+        let text = doc.text().slice(..);
+
+        let selection = doc.selection(view.id).clone().transform(|range| {
+            let line = range.cursor_line(text);
+
+            // adjust to start of the line
+            let pos = text.line_to_char(line);
+            let new_pos = pos.checked_add(usize::from(column_count));
+            range.put_cursor(text, new_pos.unwrap_or(0), cx.editor.mode == Mode::Select)
+        });
+        doc.set_selection(view.id, selection);
+    } else {
+        goto_line_start(cx)
+    }
+}
+
 fn goto_next_buffer(cx: &mut Context) {
     goto_buffer(cx.editor, Direction::Forward, cx.count());
 }
@@ -930,6 +952,16 @@ fn goto_first_nonwhitespace_impl(view: &mut View, doc: &mut Document, movement: 
         }
     });
     doc.set_selection(view.id, selection);
+}
+
+fn undo_selection(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    doc.undo_selection(view.id);
+}
+
+fn redo_selection(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    doc.redo_selection(view.id);
 }
 
 fn trim_selections(cx: &mut Context) {

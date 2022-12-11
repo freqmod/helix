@@ -39,6 +39,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "G" => goto_line,
         "g" => { "Goto"
             "g" => goto_file_start,
+            "o" => goto_column_number,
             "e" => goto_last_line,
             "f" => goto_file,
             "h" => goto_line_start,
@@ -169,6 +170,8 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
 
         "," => keep_primary_selection,
         "A-," => remove_primary_selection,
+        "A-m" => undo_selection,
+        "A-j" => redo_selection,
 
         // "q" => record_macro,
         // "Q" => replay_macro,
@@ -371,6 +374,11 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "S-home" => goto_first_nonwhitespace,
 
         "v" => normal_mode,
+        "u" => undo_selection,
+        "U" => redo_selection,
+
+        "A-m" => undo_selection,
+        "A-j" => redo_selection,
         "g" => { "Goto"
             "k" => extend_line_up,
             "j" => extend_line_down,
@@ -403,6 +411,9 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "home" => goto_line_start,
         "end" => goto_line_end_newline,
         "S-home" => goto_first_nonwhitespace,
+
+        "A-m" => undo_selection,
+        "A-j" => redo_selection,
     });
     hashmap!(
         Mode::Normal => normal,

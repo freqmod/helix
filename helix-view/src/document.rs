@@ -34,7 +34,7 @@ use helix_core::{
     indent::{auto_detect_indent_style, IndentStyle},
     line_ending::auto_detect_line_ending,
     syntax::{self, LanguageConfiguration},
-    ChangeSet, Diagnostic, LineEnding, Range, Rope, RopeBuilder, Selection, Syntax, Transaction,
+    ChangeSet, Diagnostic, HistorySelection, LineEnding, Range, Rope, RopeBuilder, Selection, Syntax, Transaction,
 };
 
 use crate::editor::Config;
@@ -129,7 +129,7 @@ pub enum DocumentOpenError {
 pub struct Document {
     pub(crate) id: DocumentId,
     text: Rope,
-    selections: HashMap<ViewId, Selection>,
+    selections: HashMap<ViewId, HistorySelection>,
 
     /// Inlay hints annotations for the document, by view.
     ///
@@ -1158,12 +1158,40 @@ impl Document {
     /// Select text within the [`Document`].
     pub fn set_selection(&mut self, view_id: ViewId, selection: Selection) {
         // TODO: use a transaction?
-        self.selections
-            .insert(view_id, selection.ensure_invariants(self.text().slice(..)));
+        let selections_for_view = if let Some(selections) = self.selections.get_mut(&view_id) {
+            selections
+        } else {
+            /* The selection list is inserted before it is extracted as a ref
+            of the value inside the hashmap is desired */
+            // Can selection be empty?
+            assert!(self
+                .selections
+                .insert(view_id, Default::default())
+                .is_none());
+            /* Since the value was just inserted this unwrap should be safe */
+            self.selections.get_mut(&view_id).unwrap()
+        };
+        let text_slice = self.text.slice(..);
+        selections_for_view.set_selection(selection.ensure_invariants(text_slice), text_slice);
         helix_event::dispatch(SelectionDidChange {
             doc: self,
             view: view_id,
-        })
+        });
+        self.moved_since_changed = true;
+    }
+
+    /// Undo current selection within [`Document`] for given view, restoring the previous selection.
+    pub fn undo_selection(&mut self, view_id: ViewId) {
+        if let Some(selections) = self.selections.get_mut(&view_id) {
+            selections.undo_selections();
+        }
+    }
+
+    /// Undo current selection within [`Document`] for given view, restoring the previous selection.
+    pub fn redo_selection(&mut self, view_id: ViewId) {
+        if let Some(selections) = self.selections.get_mut(&view_id) {
+            selections.redo_selections();
+        }
     }
 
     /// Find the origin selection of the text in a document, i.e. where
@@ -1226,20 +1254,27 @@ impl Document {
                 });
             }
 
+            /* When a transaction is applied (i.e. document is changed), only keep the last
+            selection in the selection history */
             for selection in self.selections.values_mut() {
-                *selection = selection
-                    .clone()
-                    // Map through changes
-                    .map(transaction.changes())
-                    // Ensure all selections across all views still adhere to invariants.
-                    .ensure_invariants(self.text.slice(..));
+                *selection = HistorySelection::from_single(
+                    selection
+                        .current_selection()
+                        .clone()
+                        // Map through changes
+                        .map(transaction.changes())
+                        // Ensure all selections across all views still adhere to invariants.
+                        .ensure_invariants(self.text.slice(..)),
+                );
             }
 
             // if specified, the current selection should instead be replaced by transaction.selection
             if let Some(selection) = transaction.selection() {
                 self.selections.insert(
                     view_id,
-                    selection.clone().ensure_invariants(self.text.slice(..)),
+                    HistorySelection::from_single(
+                        selection.clone().ensure_invariants(self.text.slice(..)),
+                    ),
                 );
                 helix_event::dispatch(SelectionDidChange {
                     doc: self,
@@ -1751,11 +1786,11 @@ impl Document {
 
     #[inline]
     pub fn selection(&self, view_id: ViewId) -> &Selection {
-        &self.selections[&view_id]
+        self.selections[&view_id].current_selection()
     }
 
     #[inline]
-    pub fn selections(&self) -> &HashMap<ViewId, Selection> {
+    pub fn selections(&self) -> &HashMap<ViewId, HistorySelection> {
         &self.selections
     }
 

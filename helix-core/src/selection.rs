@@ -766,6 +766,62 @@ impl<'a> Iterator for LineRangeIter<'a> {
     }
 }
 
+/// Number of historical selections to keep track of
+pub const SELECTION_HISTORY_LENGTH: usize = 16;
+#[derive(Default, Debug, Clone)]
+pub struct HistorySelection {
+    selections: SmallVec<[Selection; SELECTION_HISTORY_LENGTH]>,
+    current_history_index: usize,
+}
+impl HistorySelection {
+    pub fn from_single(selection: Selection) -> Self {
+        Self {
+            selections: SmallVec::from_elem(selection, 1),
+            current_history_index: 0,
+        }
+    }
+
+    pub fn current_selection(&self) -> &Selection {
+        self.selections
+            .get(self.current_history_index)
+            .unwrap_or(self.selections.get(self.selections.len() - 1).unwrap())
+    }
+
+    pub fn set_selection(&mut self, selection: Selection, text_slice: RopeSlice) {
+        /* Must use text member variable here, as as the borrow checker cannot validate that
+        selections and text is disjoint when an access function is used */
+        if self.selections.len() > self.current_history_index {
+            /* Remove all elements after the inserted one upon insertion */
+            self.selections.truncate(self.current_history_index + 1);
+        }
+        if self.selections.len() >= SELECTION_HISTORY_LENGTH {
+            self.selections.remove(0); /* Avoid growing selection history too large */
+        }
+        self.selections
+            .push(selection.ensure_invariants(text_slice));
+        self.current_history_index = self.selections.len().saturating_sub(1);
+    }
+    pub fn undo_selections(&mut self) {
+        log::info!(
+            "Got undo selections for view, current history: {}, current_index: {}",
+            self.selections.len(),
+            self.current_history_index
+        );
+        self.current_history_index = self.current_history_index.saturating_sub(1);
+    }
+    pub fn redo_selections(&mut self) {
+        log::info!(
+            "Got redo selections for view, current history: {} {}",
+            self.selections.len(),
+            self.current_history_index
+        );
+        self.current_history_index = self
+            .selections
+            .len()
+            .min(self.current_history_index.saturating_add(1));
+    }
+}
+
 // TODO: checkSelection -> check if valid for doc length && sorted
 
 pub fn keep_or_remove_matches(
