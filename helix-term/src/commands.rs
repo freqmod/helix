@@ -339,6 +339,7 @@ impl MappableCommand {
         file_picker, "Open file picker",
         file_picker_in_current_buffer_directory, "Open file picker at current buffer's directory",
         file_picker_in_current_directory, "Open file picker at current working directory",
+        file_picker_in_directory_of_current_file, "Open file picker at the directory of the current open file",
         code_action, "Perform code action",
         buffer_picker, "Open buffer picker",
         jumplist_picker, "Open jumplist picker",
@@ -2929,6 +2930,17 @@ fn file_picker_in_current_directory(cx: &mut Context) {
     }
     let picker = ui::file_picker(cwd, &cx.editor.config());
     cx.push_layer(Box::new(overlaid(picker)));
+}
+
+fn file_picker_in_directory_of_current_file(cx: &mut Context) {
+    let (_, doc) = current!(cx.editor);
+    let cwd = doc
+        .path()
+        .map(|p| p.parent().map(|pp| PathBuf::from(pp)))
+        .flatten()
+        .unwrap_or_else(|| PathBuf::from("./"));
+    let picker = ui::file_picker(cwd, &cx.editor.config());
+    cx.push_layer(Box::new(overlayed(picker)));
 }
 
 fn buffer_picker(cx: &mut Context) {
