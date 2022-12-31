@@ -100,6 +100,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
 
         "%" => select_all,
         "x" => extend_line_below,
+        "C-x" => extend_line_above,
         "X" => extend_to_line_bounds,
         "A-x" => shrink_to_line_bounds,
 
@@ -340,7 +341,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "C-z" => suspend,
 
         "C-a" => increment,
-        "C-x" => decrement,
+        "C-q" => decrement,
     });
     let mut select = normal.clone();
     select.merge_nodes(keymap!({ "Select mode"
