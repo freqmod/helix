@@ -480,7 +480,8 @@ impl ChangeSet {
         }
         let out_of_bounds: Vec<_> = positions.collect();
 
-        panic!("Positions {out_of_bounds:?} are out of range for changeset len {old_pos}!",)
+
+        println!("Positions {out_of_bounds:?} are out of range for changeset len {old_pos}!",)
     }
 
     /// Map a position through the changes.
