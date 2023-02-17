@@ -33,8 +33,10 @@ use helix_core::{
     history::{History, State, UndoKind},
     indent::{auto_detect_indent_style, IndentStyle},
     line_ending::auto_detect_line_ending,
+    selection::HistorySelection,
     syntax::{self, LanguageConfiguration},
-    ChangeSet, Diagnostic, HistorySelection, LineEnding, Range, Rope, RopeBuilder, Selection, Syntax, Transaction,
+    ChangeSet, Diagnostic, LineEnding, Rope, RopeBuilder, Selection, Syntax, Transaction,
+    DEFAULT_LINE_ENDING,
 };
 
 use crate::editor::Config;
@@ -181,12 +183,15 @@ pub struct Document {
     pub(crate) language_servers: HashMap<LanguageServerName, Arc<Client>>,
 
     diff_handle: Option<DiffHandle>,
+
     version_control_head: Option<Arc<ArcSwap<Box<str>>>>,
 
     // when document was used for most-recent-used buffer picker
     pub focused_at: std::time::Instant,
 
     pub readonly: bool,
+    
+    moved_since_changed: bool,
 }
 
 /// Inlay hints for a single `(Document, View)` combo.
@@ -645,7 +650,10 @@ impl Document {
         let (encoding, has_bom) = encoding_with_bom_info.unwrap_or((encoding::UTF_8, false));
         let line_ending = config.load().default_line_ending.into();
         let changes = ChangeSet::new(text.slice(..));
-        let old_state = None;
+        let old_state = Some(State {
+            doc: Rope::new(),
+            selection: Selection::single(0, 0),
+        });
 
         Self {
             id: DocumentId::default(),
@@ -672,6 +680,7 @@ impl Document {
             modified_since_accessed: false,
             language_servers: HashMap::new(),
             diff_handle: None,
+            moved_since_changed: false,
             config,
             version_control_head: None,
             focused_at: std::time::Instant::now(),
@@ -1421,6 +1430,13 @@ impl Document {
             });
         }
 
+        if self.moved_since_changed {
+            /* Store an undo transaction if a move has been made since last entry */
+            //            let view = view_mut!(editor, view_id);
+            self.append_changes_to_history_no_jumplist(view_id);
+            self.moved_since_changed = false;
+        }
+
         let success = self.apply_impl(transaction, view_id, emit_lsp_notification);
 
         if !transaction.changes().is_empty() {
@@ -1528,6 +1544,10 @@ impl Document {
         self.savepoints.push(savepoint_ref)
     }
 
+    pub fn register_insert_mode_movement(&mut self) {
+        self.moved_since_changed = true;
+    }
+
     fn earlier_later_impl(&mut self, view: &mut View, uk: UndoKind, earlier: bool) -> bool {
         if earlier {
             self.append_changes_to_history(view);
@@ -1563,11 +1583,21 @@ impl Document {
     pub fn later(&mut self, view: &mut View, uk: UndoKind) -> bool {
         self.earlier_later_impl(view, uk, false)
     }
+    pub fn append_changes_to_history_no_jumplist(&mut self, view_id: ViewId) {
+        let _ = self.append_changes_to_history_internal(view_id);
+    }
+
+    pub fn append_changes_to_history(&mut self, view: &mut View) {
+        if let Some(transaction) = self.append_changes_to_history_internal(view.id) {
+            // Update jumplist entries in the view.
+            view.apply(&transaction, self);
+        }
+    }
 
     /// Commit pending changes to history
-    pub fn append_changes_to_history(&mut self, view: &mut View) {
+    fn append_changes_to_history_internal(&mut self, view_id: ViewId) -> Option<Transaction> {
         if self.changes.is_empty() {
-            return;
+            return None;
         }
 
         let new_changeset = ChangeSet::new(self.text().slice(..));
@@ -1575,17 +1605,21 @@ impl Document {
         // Instead of doing this messy merge we could always commit, and based on transaction
         // annotations either add a new layer or compose into the previous one.
         let transaction =
-            Transaction::from(changes).with_selection(self.selection(view.id).clone());
+            Transaction::from(changes).with_selection(self.selection(view_id).clone());
 
         // HAXX: we need to reconstruct the state as it was before the changes..
-        let old_state = self.old_state.take().expect("no old_state available");
+        let old_state = self.old_state.take().unwrap();
+        self.old_state = Some(State {
+            doc: self.text.clone(),
+            selection: self.selection(view_id).clone(),
+        });
 
+        // state is doc and selection
+        //        let state = self.state
         let mut history = self.history.take();
         history.commit_revision(&transaction, &old_state);
         self.history.set(history);
-
-        // Update jumplist entries in the view.
-        view.apply(&transaction, self);
+        Some(transaction)
     }
 
     pub fn id(&self) -> DocumentId {
