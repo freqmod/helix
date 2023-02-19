@@ -359,6 +359,7 @@ pub fn trigger_auto_completion(
     }
 
     let is_auto_trigger = !trigger_char_only
+        && !doc.moved_since_changed()
         && doc
             .text()
             .chars_at(cursor)

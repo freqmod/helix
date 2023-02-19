@@ -1673,6 +1673,10 @@ impl Document {
         current_revision
     }
 
+    pub fn moved_since_changed(&self) -> bool {
+        self.moved_since_changed
+    }
+
     /// Corresponding language scope name. Usually `source.<lang>`.
     pub fn language_scope(&self) -> Option<&str> {
         self.language
