@@ -4758,6 +4758,8 @@ pub fn completion(cx: &mut Context) {
     let text = doc.text().slice(..);
     let cursor = range.cursor(text);
 
+    doc.append_changes_to_history_no_jumplist(view.id);
+
     cx.editor
         .handlers
         .trigger_completions(cursor, doc.id(), view.id);
