@@ -2508,7 +2508,7 @@ fn read(cx: &mut compositor::Context, args: &[Cow<str>], event: PromptEvent) -> 
 
     let file = std::fs::File::open(path).map_err(|err| anyhow!("error opening file: {}", err))?;
     let mut reader = BufReader::new(file);
-    let (contents, _, _) = read_to_string(&mut reader, Some(doc.encoding()))
+    let (contents, _, _, _) = read_to_string(&mut reader, Some(doc.encoding()))
         .map_err(|err| anyhow!("error reading file: {}", err))?;
     let contents = Tendril::from(contents);
     let selection = doc.selection(view.id);

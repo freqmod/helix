@@ -14,6 +14,11 @@ use helix_stdx::faccess::{copy_metadata, readonly};
 use helix_vcs::{DiffHandle, DiffProviderRegistry};
 use thiserror;
 
+use ahash::AHasher;
+use bytes::buf::Buf;
+use core::hash::Hasher;
+use tokio::io::AsyncReadExt;
+
 use ::parking_lot::Mutex;
 use serde::de::{self, Deserialize, Deserializer};
 use serde::Serialize;
@@ -35,8 +40,7 @@ use helix_core::{
     line_ending::auto_detect_line_ending,
     selection::HistorySelection,
     syntax::{self, LanguageConfiguration},
-    ChangeSet, Diagnostic, LineEnding, Rope, RopeBuilder, Selection, Syntax, Transaction,
-    DEFAULT_LINE_ENDING,
+    ChangeSet, Diagnostic, LineEnding, Range, Rope, RopeBuilder, Selection, Syntax, Transaction,
 };
 
 use crate::editor::Config;
@@ -108,6 +112,7 @@ pub struct DocumentSavedEvent {
     pub doc_id: DocumentId,
     pub path: PathBuf,
     pub text: Rope,
+    pub hash: u64,
 }
 
 pub type DocumentSavedEventResult = Result<DocumentSavedEvent, anyhow::Error>;
@@ -174,6 +179,7 @@ pub struct Document {
     // Last time we wrote to the file. This will carry the time the file was last opened if there
     // were no saves.
     last_saved_time: SystemTime,
+    last_saved_hash: u64,
 
     last_saved_revision: usize,
     version: i32, // should be usize?
@@ -190,7 +196,7 @@ pub struct Document {
     pub focused_at: std::time::Instant,
 
     pub readonly: bool,
-    
+
     moved_since_changed: bool,
 }
 
@@ -279,6 +285,7 @@ impl fmt::Debug for Document {
             .field("old_state", &self.old_state)
             // .field("history", &self.history)
             .field("last_saved_time", &self.last_saved_time)
+            .field("last_saved_hash", &self.last_saved_hash)
             .field("last_saved_revision", &self.last_saved_revision)
             .field("version", &self.version)
             .field("modified_since_accessed", &self.modified_since_accessed)
@@ -393,8 +400,8 @@ fn apply_bom(encoding: &'static encoding::Encoding, buf: &mut [u8; BUF_SIZE]) ->
 /// parameter can be used to override encoding auto-detection.
 pub fn from_reader<R: std::io::Read + ?Sized>(
     reader: &mut R,
-    encoding: Option<&'static Encoding>,
-) -> Result<(Rope, &'static Encoding, bool), io::Error> {
+    encoding: Option<&'static encoding::Encoding>,
+) -> Result<(Rope, &'static encoding::Encoding, bool, u64), io::Error> {
     // These two buffers are 8192 bytes in size each and are used as
     // intermediaries during the decoding process. Text read into `buf`
     // from `reader` is decoded into `buf_out` as UTF-8. Once either
@@ -403,6 +410,7 @@ pub fn from_reader<R: std::io::Read + ?Sized>(
     let mut buf = [0u8; BUF_SIZE];
     let mut buf_out = [0u8; BUF_SIZE];
     let mut builder = RopeBuilder::new();
+    let mut hasher = AHasher::default();
 
     let (encoding, has_bom, mut decoder, read) =
         read_and_detect_encoding(reader, encoding, &mut buf)?;
@@ -428,12 +436,12 @@ pub fn from_reader<R: std::io::Read + ?Sized>(
     let mut total_written = 0usize;
     loop {
         let mut total_read = 0usize;
-
         // An inner loop is necessary as it is possible that the input buffer
         // may not be completely decoded on the first `decode_to_str()` call
         // which would happen in cases where the output buffer is filled to
         // capacity.
         loop {
+            hasher.write(&slice[total_read..]);
             let (result, read, written, ..) = decoder.decode_to_str(
                 &slice[total_read..],
                 &mut buf_str[total_written..],
@@ -474,14 +482,30 @@ pub fn from_reader<R: std::io::Read + ?Sized>(
         slice = &buf[..read];
         is_empty = read == 0;
     }
+    let hash = hasher.finish();
     let rope = builder.finish();
-    Ok((rope, encoding, has_bom))
+    log::debug!("Load from reader: Hash: {:0x}", hash);
+    Ok((rope, encoding, has_bom, hash))
+}
+
+pub async fn hash_file(path: &PathBuf) -> Result<u64, Error> {
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut buf = bytes::BytesMut::with_capacity(4096);
+    let mut hasher = AHasher::default();
+    loop {
+        if file.read_buf(&mut buf).await? == 0 {
+            break;
+        }
+        hasher.write(buf.chunk());
+        buf.clear();
+    }
+    Ok(hasher.finish())
 }
 
 pub fn read_to_string<R: std::io::Read + ?Sized>(
     reader: &mut R,
     encoding: Option<&'static Encoding>,
-) -> Result<(String, &'static Encoding, bool), Error> {
+) -> Result<(String, &'static Encoding, bool, u64), Error> {
     let mut buf = [0u8; BUF_SIZE];
 
     let (encoding, has_bom, mut decoder, read) =
@@ -490,11 +514,13 @@ pub fn read_to_string<R: std::io::Read + ?Sized>(
     let mut slice = &buf[..read];
     let mut is_empty = read == 0;
     let mut buf_string = String::with_capacity(buf.len());
+    let mut hasher = AHasher::default();
 
     loop {
         let mut total_read = 0usize;
 
         loop {
+            hasher.write(&slice[total_read..]);
             let (result, read, ..) =
                 decoder.decode_to_string(&slice[total_read..], &mut buf_string, is_empty);
 
@@ -521,7 +547,9 @@ pub fn read_to_string<R: std::io::Read + ?Sized>(
         slice = &buf[..read];
         is_empty = read == 0;
     }
-    Ok((buf_string, encoding, has_bom))
+    let hash = hasher.finish();
+
+    Ok((buf_string, encoding, has_bom, hash))
 }
 
 /// Reads the first chunk from a Reader into the given buffer
@@ -563,7 +591,7 @@ pub async fn to_writer<'a, W: tokio::io::AsyncWriteExt + Unpin + ?Sized>(
     writer: &'a mut W,
     encoding_with_bom_info: (&'static Encoding, bool),
     rope: &'a Rope,
-) -> Result<(), Error> {
+) -> Result<u64, Error> {
     // Text inside a `Rope` is stored as non-contiguous blocks of data called
     // chunks. The absolute size of each chunk is unknown, thus it is impossible
     // to predict the end of the chunk iterator ahead of time. Instead, it is
@@ -585,6 +613,7 @@ pub async fn to_writer<'a, W: tokio::io::AsyncWriteExt + Unpin + ?Sized>(
     };
 
     let mut encoder = Encoder::from_encoding(encoding);
+    let mut hasher = AHasher::default();
 
     for chunk in iter {
         let is_empty = chunk.is_empty();
@@ -613,6 +642,7 @@ pub async fn to_writer<'a, W: tokio::io::AsyncWriteExt + Unpin + ?Sized>(
                 encoding::CoderResult::OutputFull => {
                     debug_assert!(chunk.len() > total_read);
                     writer.write_all(&buf[..total_written]).await?;
+                    hasher.write(&buf[..total_written]);
                     total_written = 0;
                 }
             }
@@ -622,12 +652,13 @@ pub async fn to_writer<'a, W: tokio::io::AsyncWriteExt + Unpin + ?Sized>(
         // flushed and the outer loop terminates.
         if is_empty {
             writer.write_all(&buf[..total_written]).await?;
+            hasher.write(&buf[..total_written]);
             writer.flush().await?;
             break;
         }
     }
 
-    Ok(())
+    Ok(hasher.finish())
 }
 
 fn take_with<T, F>(mut_ref: &mut T, f: F)
@@ -645,6 +676,7 @@ impl Document {
     pub fn from(
         text: Rope,
         encoding_with_bom_info: Option<(&'static Encoding, bool)>,
+        hash: u64,
         config: Arc<dyn DynAccess<Config>>,
     ) -> Self {
         let (encoding, has_bom) = encoding_with_bom_info.unwrap_or((encoding::UTF_8, false));
@@ -676,6 +708,7 @@ impl Document {
             history: Cell::new(History::default()),
             savepoints: Vec::new(),
             last_saved_time: SystemTime::now(),
+            last_saved_hash: hash,
             last_saved_revision: 0,
             modified_since_accessed: false,
             language_servers: HashMap::new(),
@@ -689,10 +722,15 @@ impl Document {
         }
     }
 
-    pub fn default(config: Arc<dyn DynAccess<Config>>) -> Self {
+    pub fn default(config: Arc<dyn DynAccess<Config> + Send + Sync>) -> Self {
         let line_ending: LineEnding = config.load().default_line_ending.into();
         let text = Rope::from(line_ending.as_str());
-        Self::from(text, None, config)
+        Self::from(
+            text,
+            None,
+            ahasher_hash(line_ending.as_str().as_bytes()),
+            config,
+        )
     }
 
     // TODO: async fn?
@@ -713,16 +751,22 @@ impl Document {
         }
 
         // Open the file if it exists, otherwise assume it is a new file (and thus empty).
-        let (rope, encoding, has_bom) = if path.exists() {
-            let mut file = std::fs::File::open(path)?;
+        let (rope, encoding, has_bom, hash) = if path.exists() {
+            let mut file =
+                std::fs::File::open(path)?;
             from_reader(&mut file, encoding)?
         } else {
             let line_ending: LineEnding = config.load().default_line_ending.into();
             let encoding = encoding.unwrap_or(encoding::UTF_8);
-            (Rope::from(line_ending.as_str()), encoding, false)
+            (
+                Rope::from(line_ending.as_str()),
+                encoding,
+                false,
+                ahasher_hash(line_ending.as_str().as_bytes()),
+            )
         };
 
-        let mut doc = Self::from(rope, Some((encoding, has_bom)), config);
+        let mut doc = Self::from(rope, Some((encoding, has_bom)), hash, config);
 
         // set the path and try detecting the language
         doc.set_path(Some(path));
@@ -893,6 +937,7 @@ impl Document {
 
         let encoding_with_bom_info = (self.encoding, self.has_bom);
         let last_saved_time = self.last_saved_time;
+        let last_saved_hash = self.last_saved_hash;
 
         // We encode the file according to the `Document`'s encoding.
         let future = async move {
@@ -913,7 +958,21 @@ impl Document {
                 if let Ok(metadata) = fs::metadata(&path).await {
                     if let Ok(mtime) = metadata.modified() {
                         if last_saved_time < mtime {
-                            bail!("file modified by an external process, use :w! to overwrite");
+                            /* Check if the file actually changed, or was just touched */
+                            let stored_hash = hash_file(&path).await?;
+                            if last_saved_hash != stored_hash {
+                                bail!("file modified by an external process, use :w! to overwrite");
+                            } else {
+                                log::debug!(
+                                    concat!(
+                                        "Modification time was different cached:",
+                                        " {:?} vs stored{:?}, but hash was the same: {:0x}"
+                                    ),
+                                    last_saved_time,
+                                    mtime,
+                                    stored_hash
+                                );
+                            }
                         }
                     }
                 }
@@ -962,9 +1021,9 @@ impl Document {
 
             let write_result: anyhow::Result<_> = async {
                 let mut dst = tokio::fs::File::create(&write_path).await?;
-                to_writer(&mut dst, encoding_with_bom_info, &text).await?;
+                let result = to_writer(&mut dst, encoding_with_bom_info, &text).await?;
                 dst.sync_all().await?;
-                Ok(())
+                Ok(result)
             }
             .await;
 
@@ -986,12 +1045,13 @@ impl Document {
                 }
             }
 
-            write_result?;
+            let hash = write_result?;
 
             let event = DocumentSavedEvent {
                 revision: current_rev,
                 doc_id,
                 path,
+                hash,
                 text: text.clone(),
             };
 
@@ -1649,14 +1709,16 @@ impl Document {
     }
 
     /// Set the document's latest saved revision to the given one.
-    pub fn set_last_saved_revision(&mut self, rev: usize) {
+    pub fn save_event_occured(&mut self, event: DocumentSavedEvent) {
         log::debug!(
-            "doc {} revision updated {} -> {}",
+            "doc {} revision updated {} -> {} (hash: {:0x})",
             self.id,
             self.last_saved_revision,
-            rev
+            event.revision,
+            event.hash
         );
-        self.last_saved_revision = rev;
+        self.last_saved_revision = event.revision;
+        self.last_saved_hash = event.hash;
         self.last_saved_time = SystemTime::now();
     }
 
@@ -2140,6 +2202,13 @@ impl Display for FormatterError {
     }
 }
 
+/* Helper function to hash a single slice, used above to get hashing on one line */
+fn ahasher_hash(data: &[u8]) -> u64 {
+    let mut hasher = AHasher::default();
+    hasher.write(data);
+    hasher.finish()
+}
+
 #[cfg(test)]
 mod test {
     use arc_swap::ArcSwap;
@@ -2153,6 +2222,7 @@ mod test {
         let mut doc = Document::from(
             text,
             None,
+            ahasher_hash("hello\r\nworld".as_bytes()),
             Arc::new(ArcSwap::new(Arc::new(Config::default()))),
         );
         let view = ViewId::default();
@@ -2191,6 +2261,7 @@ mod test {
         let mut doc = Document::from(
             text,
             None,
+            ahasher_hash("hello".as_bytes()),
             Arc::new(ArcSwap::new(Arc::new(Config::default()))),
         );
         let view = ViewId::default();

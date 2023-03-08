@@ -2940,7 +2940,7 @@ fn file_picker_in_directory_of_current_file(cx: &mut Context) {
         .flatten()
         .unwrap_or_else(|| PathBuf::from("./"));
     let picker = ui::file_picker(cwd, &cx.editor.config());
-    cx.push_layer(Box::new(overlayed(picker)));
+    cx.push_layer(Box::new(overlaid(picker)));
 }
 
 fn buffer_picker(cx: &mut Context) {
@@ -3292,7 +3292,6 @@ enum IndentFallbackPos {
     LineEnd,
 }
 
-.
 // Change to insert mode at the current cursor, collapsing the current selection
 fn insert_at_cursor(cx: &mut Context) {
     collapse_selection(cx);

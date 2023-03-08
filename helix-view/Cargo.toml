@@ -39,6 +39,7 @@ arc-swap = { version = "1.7.1" }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "io-util", "io-std", "time", "process", "macros", "fs", "parking_lot"] }
 tokio-stream = "0.1"
 futures-util = { version = "0.3", features = ["std", "async-await"], default-features = false }
+bytes = {version="1.4.0"}
 
 slotmap = "1"
 

@@ -1057,7 +1057,7 @@ pub struct Editor {
     pub autoinfo: Option<Info>,
     pub show_window_ids: bool,
 
-    pub config: Arc<dyn DynAccess<Config>>,
+    pub config: Arc<dyn DynAccess<Config> + Send + Sync>,
     pub auto_pairs: Option<AutoPairs>,
 
     pub idle_timer: Pin<Box<Sleep>>,
@@ -1154,7 +1154,7 @@ impl Editor {
         mut area: Rect,
         theme_loader: Arc<theme::Loader>,
         syn_loader: Arc<ArcSwap<syntax::Loader>>,
-        config: Arc<dyn DynAccess<Config>>,
+        config: Arc<dyn DynAccess<Config> + Send + Sync>,
         handlers: Handlers,
     ) -> Self {
         let language_servers = helix_lsp::Registry::new(syn_loader.clone());
@@ -1674,10 +1674,11 @@ impl Editor {
     }
 
     pub fn new_file_from_stdin(&mut self, action: Action) -> Result<DocumentId, Error> {
-        let (stdin, encoding, has_bom) = crate::document::read_to_string(&mut stdin(), None)?;
+        let (stdin, encoding, has_bom, hash) = crate::document::read_to_string(&mut stdin(), None)?;
         let doc = Document::from(
             helix_core::Rope::default(),
             Some((encoding, has_bom)),
+            hash,
             self.config.clone(),
         );
         let doc_id = self.new_file_from_document(action, doc);
@@ -2094,7 +2095,7 @@ impl Editor {
                 };
 
                 let doc = doc_mut!(self, &save_event.doc_id);
-                doc.set_last_saved_revision(save_event.revision);
+                doc.save_event_occured(save_event);
             }
         }
 
