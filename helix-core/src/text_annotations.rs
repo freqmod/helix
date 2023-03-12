@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::ops::Range;
 use std::ptr::NonNull;
 
+
 use crate::doc_formatter::FormattedGrapheme;
 use crate::syntax::Highlight;
 use crate::{Position, Tendril};

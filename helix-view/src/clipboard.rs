@@ -67,12 +67,12 @@ macro_rules! command_provider {
 }
 
 #[cfg(windows)]
-pub fn get_clipboard_provider() -> Box<dyn ClipboardProvider> {
+pub fn get_clipboard_provider() -> Box<dyn ClipboardProvider + Send> {
     Box::<provider::WindowsProvider>::default()
 }
 
 #[cfg(target_os = "macos")]
-pub fn get_clipboard_provider() -> Box<dyn ClipboardProvider> {
+pub fn get_clipboard_provider() -> Box<dyn ClipboardProvider + Send> {
     use helix_stdx::env::{binary_exists, env_var_is_set};
 
     if env_var_is_set("TMUX") && binary_exists("tmux") {
@@ -91,13 +91,13 @@ pub fn get_clipboard_provider() -> Box<dyn ClipboardProvider> {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn get_clipboard_provider() -> Box<dyn ClipboardProvider> {
+pub fn get_clipboard_provider() -> Box<dyn ClipboardProvider + Send> {
     // TODO:
     Box::new(provider::FallbackProvider::new())
 }
 
 #[cfg(not(any(windows, target_arch = "wasm32", target_os = "macos")))]
-pub fn get_clipboard_provider() -> Box<dyn ClipboardProvider> {
+pub fn get_clipboard_provider() -> Box<dyn ClipboardProvider + Send> {
     use helix_stdx::env::{binary_exists, env_var_is_set};
     use provider::command::is_exit_success;
     // TODO: support for user-defined provider, probably when we have plugin support by setting a

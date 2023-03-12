@@ -1165,10 +1165,10 @@ fn move_next_long_word_end(cx: &mut Context) {
 
 fn goto_para_impl<F>(cx: &mut Context, move_fn: F)
 where
-    F: Fn(RopeSlice, Range, usize, Movement) -> Range + 'static,
+    F: Send + Fn(RopeSlice, Range, usize, Movement) -> Range + 'static,
 {
     let count = cx.count();
-    let motion = move |editor: &mut Editor| {
+    let motion = Box::new(move |editor: &mut Editor| {
         let (view, doc) = current!(editor);
         let text = doc.text().slice(..);
         let behavior = if editor.mode == Mode::Select {
@@ -1182,7 +1182,7 @@ where
             .clone()
             .transform(|range| move_fn(text, range, count, behavior));
         doc.set_selection(view.id, selection);
-    };
+    });
     cx.editor.apply_motion(motion)
 }
 
@@ -5005,9 +5005,10 @@ fn shrink_selection(cx: &mut Context) {
 
 fn select_sibling_impl<F>(cx: &mut Context, sibling_fn: F)
 where
-    F: Fn(&helix_core::Syntax, RopeSlice, Selection) -> Selection + 'static,
+    F: Send + Fn(&helix_core::Syntax, RopeSlice, Selection) -> Selection + 'static,
+    &'static F: Send,
 {
-    let motion = move |editor: &mut Editor| {
+    let motion = Box::new(move |editor: &mut Editor| {
         let (view, doc) = current!(editor);
 
         if let Some(syntax) = doc.syntax() {
@@ -5016,7 +5017,7 @@ where
             let selection = sibling_fn(syntax, text, current_selection.clone());
             doc.set_selection(view.id, selection);
         }
-    };
+    });
     cx.editor.apply_motion(motion);
 }
 
