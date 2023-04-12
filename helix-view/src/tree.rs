@@ -429,7 +429,8 @@ impl Tree {
                                 // last child takes the remaining width because we can get uneven
                                 // space from rounding
                                 if i == len - 1 {
-                                    area.width = container.area.x + container.area.width - area.x;
+                                    area.width = (container.area.x + container.area.width)
+                                        .saturating_sub(area.x);
                                 }
 
                                 self.stack.push((*child, area));
