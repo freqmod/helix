@@ -240,7 +240,7 @@ impl Rect {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Color {
     Reset,
     Black,
@@ -292,7 +292,7 @@ impl From<Color> for crossterm::style::Color {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnderlineStyle {
     Reset,
     Line,
@@ -343,7 +343,7 @@ bitflags! {
     ///
     /// let m = Modifier::BOLD | Modifier::ITALIC;
     /// ```
-    #[derive(PartialEq, Eq, Debug, Clone, Copy)]
+    #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
     pub struct Modifier: u16 {
         const BOLD              = 0b0000_0000_0001;
         const DIM               = 0b0000_0000_0010;
@@ -439,7 +439,7 @@ impl FromStr for Modifier {
 ///     buffer[(0, 0)].style(),
 /// );
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
