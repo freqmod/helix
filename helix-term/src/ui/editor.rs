@@ -12,25 +12,27 @@ use crate::{
     },
 };
 
+use arc_swap::access::DynGuard;
 use helix_core::{
+    chars::char_is_line_ending,
     diagnostic::NumberOrString,
     graphemes::{next_grapheme_boundary, prev_grapheme_boundary},
     movement::Direction,
     syntax::{self, HighlightEvent},
     text_annotations::TextAnnotations,
     unicode::width::UnicodeWidthStr,
-    visual_offset_from_block, Change, Position, Range, Selection, Transaction,
+    visual_offset_from_block, Change, Position, Range, Selection, Tendril, Transaction,
 };
 use helix_view::{
     annotations::diagnostics::DiagnosticFilter,
     document::{Mode, SavePoint, SCRATCH_BUFFER_NAME},
-    editor::{CompleteAction, CursorShapeConfig},
+    editor::{CompleteAction, Config, CursorShapeConfig},
     graphics::{Color, CursorKind, Modifier, Rect, Style},
     input::{KeyEvent, MouseButton, MouseEvent, MouseEventKind},
     keyboard::{KeyCode, KeyModifiers},
     view_index_to_identifier, Document, Editor, Theme, View,
 };
-use std::{mem::take, num::NonZeroUsize, path::PathBuf, rc::Rc, sync::Arc};
+use std::{mem::take, num::NonZeroUsize, ops::Deref, path::PathBuf, rc::Rc, sync::Arc};
 
 use tui::{buffer::Buffer as Surface, text::Span};
 
@@ -41,6 +43,7 @@ pub struct EditorView {
     pub(crate) last_insert: (commands::MappableCommand, Vec<InsertEvent>),
     pub(crate) completion: Option<Completion>,
     spinners: ProgressSpinners,
+    line_move_locations: bool,
     /// Tracks if the terminal window is focused by reaction to terminal focus events
     terminal_focused: bool,
 }
@@ -72,6 +75,7 @@ impl EditorView {
             completion: None,
             spinners: ProgressSpinners::default(),
             terminal_focused: true,
+            line_move_locations: false,
         }
     }
 
@@ -95,8 +99,9 @@ impl EditorView {
         let theme = &editor.theme;
         let config = editor.config();
 
-        let text_annotations = view.text_annotations(doc, Some(theme));
+        let mut text_annotations = view.text_annotations(doc, Some(theme));
         let mut decorations = DecorationManager::default();
+        let mut translated_positions: Vec<TranslatedPosition> = Vec::new();
 
         if is_focused && config.cursorline {
             decorations.add_decoration(Self::cursorline(doc, view, theme));
@@ -212,6 +217,19 @@ impl EditorView {
             theme,
             decorations,
         );
+
+        if is_focused && self.line_move_locations {
+            Self::render_overlay_line_move_locations(
+                doc,
+                view,
+                surface,
+                theme,
+                inner,
+                &mut text_annotations,
+                editor.config(),
+            );
+        }
+
         Self::render_rulers(editor, doc, view, inner, surface, theme);
 
         // if we're not at the edge of the screen, draw a right border
@@ -804,6 +822,97 @@ impl EditorView {
                 renderer.set_style(area, primary_style);
             } else if secondary_lines.binary_search(&pos.doc_line).is_ok() {
                 renderer.set_style(area, secondary_style);
+            }
+        }
+    }
+
+    pub fn render_overlay_line_move_locations(
+        doc: &Document,
+        view: &View,
+        surface: &mut Surface,
+        theme: &Theme,
+        viewport: Rect,
+        text_annotations: &mut TextAnnotations,
+        config: DynGuard<Config>,
+    ) {
+        let primary_style = theme
+            .try_get_exact("ui.cursorcolumn.primary")
+            .or_else(|| theme.try_get_exact("ui.cursorcolumn"))
+            .unwrap_or_else(|| theme.get("ui.cursorline.primary"));
+        let text = doc.text().slice(..);
+        let selection = doc.selection(view.id);
+        let text_format = doc.text_format(viewport.width, None);
+        let top_row = surface.area.y;
+        let mut last_line = None;
+        for range in selection.iter() {
+            let cursor = range.cursor(text);
+            let Position { col, row } =
+                visual_offset_from_block(text, cursor, cursor, &text_format, text_annotations).0;
+            if last_line.map(|l| l == row).unwrap_or(false) {
+                /* Avoid annotating duplicate lines (we assume selections are sorted) */
+                continue;
+            }
+            last_line = Some(row);
+            /* Annotate from cursor backwards to the start of the line */
+            if let Some(jump_anchors_before) = config.jump_anchors_before.as_ref() {
+                let char_iter = text.chars_at(cursor).reversed();
+                let mut alphanumeric_state = text.char(cursor).is_alphabetic();
+                let mut anchor_idx = 0;
+                let mut jump_before_iter = jump_anchors_before.chars();
+                for (cidx, char) in char_iter.enumerate() {
+                    if char_is_line_ending(char) {
+                        break;
+                    }
+                    let ccol = col - cidx;
+                    if char.is_alphanumeric() != alphanumeric_state {
+                        alphanumeric_state = char.is_alphabetic();
+                        /* Show jump anchor at every transition between alphanumeric an non alphanumeric text */
+                        if let Some(jump_anchor) = jump_before_iter.next() {
+                            if jump_anchors_before.len() < anchor_idx + 1 {
+                                // render char instead
+                                if let Some(display) =
+                                    surface.get_mut((row - top_row as usize) as u16, ccol as u16)
+                                {
+                                    display.set_char(jump_anchor);
+                                    if let Some(fg_color) = primary_style.fg {
+                                        display.set_fg(fg_color);
+                                    }
+                                }
+                                anchor_idx += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            /* Then annotate from cursor forwads to the end of the line */
+            if let Some(jump_anchors_after) = config.jump_anchors_after.as_ref() {
+                let char_iter = text.chars_at(cursor);
+                let mut alphanumeric_state = text.char(cursor).is_alphabetic();
+                let mut anchor_idx = 0;
+                let mut jump_after_iter = jump_anchors_after.chars();
+                for (cidx, char) in char_iter.enumerate() {
+                    if char_is_line_ending(char) {
+                        break;
+                    }
+                    let ccol = col + cidx;
+                    if char.is_alphanumeric() != alphanumeric_state {
+                        alphanumeric_state = char.is_alphabetic();
+                        /* Show jump anchor at every transition between alphanumeric an non alphanumeric text */
+                        if let Some(jump_anchor) = jump_after_iter.next() {
+                            if jump_anchors_after.len() < anchor_idx + 1 {
+                                if let Some(display) =
+                                    surface.get_mut((row - top_row as usize) as u16, ccol as u16)
+                                {
+                                    display.set_char(jump_anchor);
+                                    if let Some(fg_color) = primary_style.fg {
+                                        display.set_fg(fg_color);
+                                    }
+                                }
+                                anchor_idx += 1;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
