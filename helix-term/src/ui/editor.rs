@@ -859,6 +859,7 @@ impl EditorView {
         );
         row_off += view.offset.vertical_offset;
 
+        /* TODO: Vertical offsets are managed wrong */
         let top_row = row_off + viewport.y as usize;
         log::trace!(
             "Render overlay view: {:?} surface: {:?} WP:{:?} RO: {}",
