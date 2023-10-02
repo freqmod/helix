@@ -883,115 +883,55 @@ impl EditorView {
                 let doc_row = text.char_to_line(cursor.min(text.len_chars()));
                 let anchor_row = text.char_to_line(view.offset.anchor.min(text.len_chars()));
                 let row = doc_row - anchor_row; /* We need to find the row at the start of the viewport */
-                let char_iter = text.chars_at(cursor).reversed();
-                let mut alphanumeric_state = text.char(cursor).is_alphabetic();
-                let mut anchor_idx = 0;
-                let mut jump_before_iter = jump_anchors_before.chars();
-                for (cidx, char) in char_iter.enumerate() {
-                    if char_is_line_ending(char) {
-                        break;
-                    }
-                    // + (viewport.x as usize)  is not part of if below, we don't want anchors in the gutter
-                    if (col < cidx + view.offset.horizontal_offset) {
-                        log::info!("CIb: {} C: {}", cidx, col);
-                        /* Avoid underflow when outside view */
-                        continue;
-                    }
-                    let ccol = col + (viewport.x as usize) - cidx - view.offset.horizontal_offset;
-                    let row_adj = row + top_row as usize;
-                    if char.is_alphanumeric() != alphanumeric_state {
-                        log::info!("State change x:{} y:{}", ccol, row_adj);
-                        alphanumeric_state = char.is_alphabetic();
-                        /* Show jump anchor at every transition between alphanumeric an non alphanumeric text */
-                        if let Some(jump_anchor) = jump_before_iter.next() {
-                            if jump_anchors_before.len() > anchor_idx + 1 {
-                                // render char instead
-                                if let Some(display) = surface.get_mut(ccol as u16, row_adj as u16)
-                                {
-                                    log::info!("Set char {} {} = {}", row_adj, ccol, jump_anchor);
-                                    display.set_char(jump_anchor);
-                                    display.set_fg(Color::LightCyan);
-                                    display.set_bg(Color::Black);
-                                } else {
-                                    log::info!("No display at: {} {}", row_adj, ccol);
-                                }
-                                anchor_idx += 1;
+                let row_adj = row + top_row as usize;
+                doc.line_move_locations(
+                    &jump_anchors_before,
+                    cursor,
+                    col,
+                    false,
+                    |cidx, jump_anchor| {
+                        if col >= cidx + view.offset.horizontal_offset {
+                            let ccol =
+                                col + (viewport.x as usize) - cidx - view.offset.horizontal_offset;
+                            if let Some(display) = surface.get_mut(ccol as u16, row_adj as u16) {
+                                log::info!("Set char {} {} = {}", row_adj, ccol, jump_anchor);
+                                display.set_char(jump_anchor);
+                                display.set_fg(Color::LightCyan);
+                                display.set_bg(Color::Black);
+                            } else {
+                                log::info!("No display at: {} {}", row_adj, ccol);
                             }
                         }
-                    }
-                }
+                    },
+                );
             }
             /* Then annotate from cursor forwads to the end of the line */
             if let Some(jump_anchors_after) = config.jump_anchors_after.as_ref() {
                 let doc_row = text.char_to_line(cursor.min(text.len_chars()));
                 let anchor_row = text.char_to_line(view.offset.anchor.min(text.len_chars()));
                 let row = doc_row - anchor_row; /* We need to find the row at the start of the viewport */
-                let char_iter = text.chars_at(cursor);
-                let mut alphanumeric_state = text.char(cursor).is_alphabetic();
-                let mut anchor_idx = 0;
-                let mut jump_after_iter = jump_anchors_after.chars();
-                for (cidx, char) in char_iter.enumerate() {
-                    if char_is_line_ending(char) {
-                        break;
-                    }
-                    if (col + (viewport.x as usize) + cidx < view.offset.horizontal_offset) {
-                        log::info!("CIa: {} C: {}", cidx, col);
-                        /* Avoid underflow when outside view */
-                        continue;
-                    }
-                    let ccol = col + cidx - view.offset.horizontal_offset + (viewport.x as usize);
-                    let row_adj = row + top_row as usize;
-                    if char.is_alphanumeric() != alphanumeric_state {
-                        log::info!("State change x:{} y:{}", ccol, row_adj);
-                        alphanumeric_state = char.is_alphabetic();
-                        /* Show jump anchor at every transition between alphanumeric an non alphanumeric text */
-                        if let Some(jump_anchor) = jump_after_iter.next() {
-                            if jump_anchors_after.len() > anchor_idx + 1 {
-                                // render char instead
-                                if let Some(display) = surface.get_mut(ccol as u16, row_adj as u16)
-                                {
-                                    log::info!("Set char {} {} = {}", row_adj, ccol, jump_anchor);
-                                    display.set_char(jump_anchor);
-                                    display.set_fg(Color::LightCyan);
-                                    display.set_bg(Color::Black);
-                                } else {
-                                    log::info!("No display at: {} {}", row_adj, ccol);
-                                }
-                                anchor_idx += 1;
+                let row_adj = row + top_row as usize;
+                doc.line_move_locations(
+                    &jump_anchors_after,
+                    cursor,
+                    col,
+                    true,
+                    |cidx, jump_anchor| {
+                        if col + (viewport.x as usize) + cidx >= view.offset.horizontal_offset {
+                            let ccol =
+                                col + cidx - view.offset.horizontal_offset + (viewport.x as usize);
+                            if let Some(display) = surface.get_mut(ccol as u16, row_adj as u16) {
+                                log::info!("Set char {} {} = {}", row_adj, ccol, jump_anchor);
+                                display.set_char(jump_anchor);
+                                display.set_fg(Color::LightCyan);
+                                display.set_bg(Color::Black);
+                            } else {
+                                log::info!("No display at: {} {}", row_adj, ccol);
                             }
                         }
-                    }
-                }
+                    },
+                );
             }
-            /*if let Some(jump_anchors_after) = config.jump_anchors_after.as_ref() {
-                let char_iter = text.chars_at(cursor);
-                let mut alphanumeric_state = text.char(cursor).is_alphabetic();
-                let mut anchor_idx = 0;
-                let mut jump_after_iter = jump_anchors_after.chars();
-                for (cidx, char) in char_iter.enumerate() {
-                    if char_is_line_ending(char) {
-                        break;
-                    }
-                    let ccol = col + cidx + left_col;
-                    let row_adj = row + top_row as usize;
-                    if char.is_alphanumeric() != alphanumeric_state {
-                        alphanumeric_state = char.is_alphabetic();
-                        /* Show jump anchor at every transition between alphanumeric an non alphanumeric text */
-                        if let Some(jump_anchor) = jump_after_iter.next() {
-                            if jump_anchors_after.len() > anchor_idx + 1 {
-                                if let Some(display) = surface.get_mut(ccol as u16, row_adj as u16)
-                                {
-                                    display.set_char(jump_anchor);
-                                    if let Some(fg_color) = primary_style.fg {
-                                        display.set_fg(fg_color);
-                                    }
-                                }
-                                anchor_idx += 1;
-                            }
-                        }
-                    }
-                }
-            }*/
         }
     }
 

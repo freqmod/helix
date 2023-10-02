@@ -2166,6 +2166,44 @@ impl Document {
     pub fn reset_all_inlay_hints(&mut self) {
         self.inlay_hints = Default::default();
     }
+    pub fn line_move_locations<F>(
+        &self,
+        jump_anchors: &str,
+        cursor: usize,
+        col: usize,
+        after: bool,
+        mut record_location: F,
+    ) where
+        F: FnMut(usize, char),
+    {
+        let after_sign: isize = if (after) { 1 } else { -1 };
+        let char_iter_raw = self.text.slice(..).chars_at(cursor);
+        let char_iter = if after {
+            char_iter_raw
+        } else {
+            char_iter_raw.reversed()
+        };
+        let mut alphanumeric_state = self.text.char(cursor).is_alphabetic();
+        let mut anchor_idx = 0;
+        let mut jump_before_iter = jump_anchors.chars();
+        for (cidx, char) in char_iter.enumerate() {
+            if helix_core::chars::char_is_line_ending(char) {
+                break;
+            }
+            if char.is_alphanumeric() != alphanumeric_state {
+                log::info!("State change x:{}", cidx);
+                alphanumeric_state = char.is_alphabetic();
+                /* Show jump anchor at every transition between alphanumeric an non alphanumeric text */
+                if let Some(jump_anchor) = jump_before_iter.next() {
+                    if jump_anchors.len() > anchor_idx + 1 {
+                        // render char instead
+                        record_location(cidx, jump_anchor);
+                        anchor_idx += 1;
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
