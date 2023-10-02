@@ -885,7 +885,7 @@ impl EditorView {
                     abspos,
                     &doc.text_format(viewport.width, Some(theme)),
                     text_annotations,
-                    viewport.width as usize,
+                    viewport.height as usize,
                 ) {
                     Ok((
                         Position {
@@ -893,7 +893,10 @@ impl EditorView {
                         },
                         ..,
                     )) => {
-                        if visual_col >= view.offset.horizontal_offset {
+                        if visual_col >= view.offset.horizontal_offset
+                            && (visual_col - view.offset.horizontal_offset
+                                < viewport.width as usize)
+                        {
                             let view_col =
                                 visual_col + (viewport.x as usize) - view.offset.horizontal_offset;
                             if let Some(display) = surface.get_mut(view_col as u16, row_adj as u16)
@@ -928,7 +931,6 @@ impl EditorView {
                     ),
                 }
             };
-            /* TODO: We need to take annotations into account when deciding where to put overlay characters */
             if let Some(jump_anchors_before) = config.jump_anchors_before.as_ref() {
                 let doc_row = text.char_to_line(cursor.min(text.len_chars()));
                 let anchor_row = text.char_to_line(view.offset.anchor.min(text.len_chars()));
@@ -942,7 +944,6 @@ impl EditorView {
                         if col < cidx {
                             return;
                         }
-                        //let abscol = col - cidx;
                         let abspos = cursor - cidx;
                         visual_offset_render(abspos, jump_anchor, false, doc_row, row_adj);
                     },
