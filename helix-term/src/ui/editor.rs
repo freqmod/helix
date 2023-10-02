@@ -878,7 +878,57 @@ impl EditorView {
                 continue;
             }
             last_line = Some(line_row);
-            /* Annotate from cursor backwards to the start of the line */
+            let mut visual_offset_render = |abspos, jump_anchor, after, doc_row, row_adj| {
+                match helix_core::visual_offset_from_anchor(
+                    doc.text().slice(..),
+                    doc_row,
+                    abspos,
+                    &doc.text_format(viewport.width, Some(theme)),
+                    text_annotations,
+                    viewport.width as usize,
+                ) {
+                    Ok((
+                        Position {
+                            col: visual_col, ..
+                        },
+                        ..,
+                    )) => {
+                        if visual_col >= view.offset.horizontal_offset {
+                            let view_col =
+                                visual_col + (viewport.x as usize) - view.offset.horizontal_offset;
+                            if let Some(display) = surface.get_mut(view_col as u16, row_adj as u16)
+                            {
+                                log::info!(
+                                    "BSet char {} {}({}/{}) = {}",
+                                    row_adj,
+                                    view_col,
+                                    visual_col,
+                                    abspos,
+                                    jump_anchor
+                                );
+                                display.set_char(jump_anchor);
+                                display.set_fg(Color::LightCyan);
+                                display.set_bg(Color::Black);
+                            } else {
+                                log::info!("No display at: {} {}", row_adj, view_col);
+                            }
+                        } else {
+                            log::info!(
+                                "Outside offset: {}, {}",
+                                visual_col,
+                                view.offset.horizontal_offset
+                            );
+                        }
+                    }
+                    Err(e) => log::warn!(
+                        "Got visual offset error while setting up display: {:?} ({} [{}])",
+                        e,
+                        abspos,
+                        doc_row
+                    ),
+                }
+            };
+            /* TODO: We need to take annotations into account when deciding where to put overlay characters */
             if let Some(jump_anchors_before) = config.jump_anchors_before.as_ref() {
                 let doc_row = text.char_to_line(cursor.min(text.len_chars()));
                 let anchor_row = text.char_to_line(view.offset.anchor.min(text.len_chars()));
@@ -887,21 +937,14 @@ impl EditorView {
                 doc.line_move_locations(
                     &jump_anchors_before,
                     cursor,
-                    col,
                     false,
                     |cidx, jump_anchor| {
-                        if col >= cidx + view.offset.horizontal_offset {
-                            let ccol =
-                                col + (viewport.x as usize) - cidx - view.offset.horizontal_offset;
-                            if let Some(display) = surface.get_mut(ccol as u16, row_adj as u16) {
-                                log::info!("Set char {} {} = {}", row_adj, ccol, jump_anchor);
-                                display.set_char(jump_anchor);
-                                display.set_fg(Color::LightCyan);
-                                display.set_bg(Color::Black);
-                            } else {
-                                log::info!("No display at: {} {}", row_adj, ccol);
-                            }
+                        if col < cidx {
+                            return;
                         }
+                        //let abscol = col - cidx;
+                        let abspos = cursor - cidx;
+                        visual_offset_render(abspos, jump_anchor, false, doc_row, row_adj);
                     },
                 );
             }
@@ -911,26 +954,10 @@ impl EditorView {
                 let anchor_row = text.char_to_line(view.offset.anchor.min(text.len_chars()));
                 let row = doc_row - anchor_row; /* We need to find the row at the start of the viewport */
                 let row_adj = row + top_row as usize;
-                doc.line_move_locations(
-                    &jump_anchors_after,
-                    cursor,
-                    col,
-                    true,
-                    |cidx, jump_anchor| {
-                        if col + (viewport.x as usize) + cidx >= view.offset.horizontal_offset {
-                            let ccol =
-                                col + cidx - view.offset.horizontal_offset + (viewport.x as usize);
-                            if let Some(display) = surface.get_mut(ccol as u16, row_adj as u16) {
-                                log::info!("Set char {} {} = {}", row_adj, ccol, jump_anchor);
-                                display.set_char(jump_anchor);
-                                display.set_fg(Color::LightCyan);
-                                display.set_bg(Color::Black);
-                            } else {
-                                log::info!("No display at: {} {}", row_adj, ccol);
-                            }
-                        }
-                    },
-                );
+                doc.line_move_locations(&jump_anchors_after, cursor, true, |cidx, jump_anchor| {
+                    let abspos = cursor + cidx;
+                    visual_offset_render(abspos, jump_anchor, true, doc_row, row_adj);
+                });
             }
         }
     }
