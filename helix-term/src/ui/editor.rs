@@ -882,11 +882,11 @@ impl EditorView {
             let mut visual_offset_render = |abspos, jump_anchor, after, doc_row, row_adj| {
                 match helix_core::visual_offset_from_anchor(
                     doc.text().slice(..),
-                    doc_row,
+                    doc.text().line_to_char(doc_row),
                     abspos,
                     &doc.text_format(viewport.width, Some(theme)),
                     text_annotations,
-                    viewport.height as usize,
+                    5,
                 ) {
                     Ok((
                         Position {
