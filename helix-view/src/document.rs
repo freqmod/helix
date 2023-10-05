@@ -2198,8 +2198,8 @@ impl Document {
                     .unwrap_or(true)
                 {
                     /* Show jump anchor at every transition between alphanumeric an non alphanumeric text */
-                    if let Some(jump_anchor) = jump_before_iter.next() {
-                        if jump_anchors.len() > anchor_idx + 1 {
+                    if jump_anchors.len() > anchor_idx {
+                        if let Some(jump_anchor) = jump_before_iter.next() {
                             last_location = Some(cidx);
                             // render char instead
                             record_location(cidx, jump_anchor);
