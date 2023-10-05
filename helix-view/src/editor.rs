@@ -987,8 +987,8 @@ impl Default for Config {
             jump_label_alphabet: ('a'..='z').collect(),
             inline_diagnostics: InlineDiagnosticsConfig::default(),
             end_of_line_diagnostics: DiagnosticFilter::Disable,
-            jump_anchors_before: Some(String::from("tsradpfwvcxgqbz")), // colemak
-            jump_anchors_after: Some(String::from("neiohluym,.kj;")),   //colemak
+            jump_anchors_before: Some(String::from("tsradpfwvcxgqbz54321!@#$%")), // colemak
+            jump_anchors_after: Some(String::from("neiohluym,.kj;09876^&*()")),   //colemak
         }
     }
 }
