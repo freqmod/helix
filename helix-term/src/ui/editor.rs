@@ -43,7 +43,6 @@ pub struct EditorView {
     pub(crate) last_insert: (commands::MappableCommand, Vec<InsertEvent>),
     pub(crate) completion: Option<Completion>,
     spinners: ProgressSpinners,
-    line_move_locations: bool,
     /// Tracks if the terminal window is focused by reaction to terminal focus events
     terminal_focused: bool,
 }
@@ -75,7 +74,6 @@ impl EditorView {
             completion: None,
             spinners: ProgressSpinners::default(),
             terminal_focused: true,
-            line_move_locations: false,
         }
     }
 
@@ -218,8 +216,7 @@ impl EditorView {
             decorations,
         );
 
-        if is_focused {
-            // && self.line_move_locations {
+        if is_focused && editor.show_line_move_locations {
             Self::render_overlay_line_move_locations(
                 doc,
                 view,
@@ -935,31 +932,40 @@ impl EditorView {
             if let Some(jump_anchors_before) = config.jump_anchors_before.as_ref() {
                 let doc_row = text.char_to_line(cursor.min(text.len_chars()));
                 let anchor_row = text.char_to_line(view.offset.anchor.min(text.len_chars()));
-                let row = doc_row - anchor_row; /* We need to find the row at the start of the viewport */
-                let row_adj = row + top_row as usize;
-                doc.line_move_locations(
-                    &jump_anchors_before,
-                    cursor,
-                    false,
-                    |cidx, jump_anchor| {
-                        if col < cidx {
-                            return;
-                        }
-                        let abspos = cursor - cidx;
-                        visual_offset_render(abspos, jump_anchor, false, doc_row, row_adj);
-                    },
-                );
+                if doc_row >= anchor_row {
+                    let row = doc_row - anchor_row; /* We need to find the row at the start of the viewport */
+                    let row_adj = row + top_row as usize;
+                    doc.line_move_locations(
+                        &jump_anchors_before,
+                        cursor,
+                        false,
+                        |cidx, jump_anchor| {
+                            if col < cidx {
+                                return;
+                            }
+                            let abspos = cursor - cidx;
+                            visual_offset_render(abspos, jump_anchor, false, doc_row, row_adj);
+                        },
+                    );
+                }
             }
             /* Then annotate from cursor forwads to the end of the line */
             if let Some(jump_anchors_after) = config.jump_anchors_after.as_ref() {
                 let doc_row = text.char_to_line(cursor.min(text.len_chars()));
                 let anchor_row = text.char_to_line(view.offset.anchor.min(text.len_chars()));
-                let row = doc_row - anchor_row; /* We need to find the row at the start of the viewport */
-                let row_adj = row + top_row as usize;
-                doc.line_move_locations(&jump_anchors_after, cursor, true, |cidx, jump_anchor| {
-                    let abspos = cursor + cidx;
-                    visual_offset_render(abspos, jump_anchor, true, doc_row, row_adj);
-                });
+                if doc_row >= anchor_row {
+                    let row = doc_row - anchor_row; /* We need to find the row at the start of the viewport */
+                    let row_adj = row + top_row as usize;
+                    doc.line_move_locations(
+                        &jump_anchors_after,
+                        cursor,
+                        true,
+                        |cidx, jump_anchor| {
+                            let abspos = cursor + cidx;
+                            visual_offset_render(abspos, jump_anchor, true, doc_row, row_adj);
+                        },
+                    );
+                }
             }
         }
     }

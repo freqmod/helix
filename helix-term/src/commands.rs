@@ -289,6 +289,10 @@ impl MappableCommand {
         find_prev_char, "Move to previous occurrence of char",
         extend_till_prev_char, "Extend till previous occurrence of char",
         extend_prev_char, "Extend to previous occurrence of char",
+        find_to_move_location, "Find to word boundary determined by displayed hints",
+        till_move_location, "Move till word boundary determined by displayed hints",
+        extend_to_move_location, "Extend to word boundary determined by displayed hints",
+        extend_till_move_location, "Extend till word boundary determined by displayed hints",
         repeat_last_motion, "Repeat last motion",
         replace, "Replace with new char",
         switch_case, "Switch (toggle) case",
@@ -1605,6 +1609,73 @@ fn extend_till_prev_char(cx: &mut Context) {
 
 fn extend_prev_char(cx: &mut Context) {
     find_char(cx, Direction::Backward, true, true)
+}
+
+fn to_move_location(cx: &mut Context, inclusive: bool, extend: bool) {
+    /* Enter to location mode */
+    cx.editor.show_line_move_locations = true;
+    cx.on_next_key(move |cx, event| {
+        if let Some(ch) = event.char() {
+            let config = cx.editor.config();
+            let (view, doc) = current!(cx.editor);
+
+            let selection = doc.selection(view.id);
+            let mut jump_to = |anchors, after, after_sign: isize| {
+                let text = doc.text().slice(..);
+                let transformed_selection = doc.selection(view.id).clone().transform(|range| {
+                    //let text_format = doc.text_format(viewport.width, None);
+                    let cursor = range.cursor(text);
+                    let mut destination_cursor = None;
+                    doc.line_move_locations(anchors, cursor, after, |cidx, jump_anchor| {
+                        let abspos = (cursor as isize + (cidx as isize * after_sign)) as usize;
+                        if jump_anchor == ch {
+                            if destination_cursor.is_none() {
+                                destination_cursor = Some(abspos);
+                            }
+                        }
+                    });
+                    if let Some(destination_cursor) = destination_cursor {
+                        if extend {
+                            range.put_cursor(text, destination_cursor, true)
+                        } else {
+                            Range::point(range.cursor(text)).put_cursor(
+                                text,
+                                destination_cursor,
+                                true,
+                            )
+                        }
+                    } else {
+                        range
+                    }
+                });
+                doc.set_selection(view.id, transformed_selection);
+            };
+            if let Some(jump_anchors_before) = config.jump_anchors_before.as_ref() {
+                if jump_anchors_before.contains(ch) {
+                    jump_to(&jump_anchors_before, false, -1);
+                }
+            }
+            if let Some(jump_anchors_after) = config.jump_anchors_after.as_ref() {
+                if jump_anchors_after.contains(ch) {
+                    jump_to(&jump_anchors_after, true, 1);
+                }
+            }
+        }
+        cx.editor.show_line_move_locations = false;
+    });
+}
+
+fn find_to_move_location(cx: &mut Context) {
+    to_move_location(cx, true, false);
+}
+fn till_move_location(cx: &mut Context) {
+    to_move_location(cx, false, false);
+}
+fn extend_to_move_location(cx: &mut Context) {
+    to_move_location(cx, true, true);
+}
+fn extend_till_move_location(cx: &mut Context) {
+    to_move_location(cx, false, true);
 }
 
 fn repeat_last_motion(cx: &mut Context) {
