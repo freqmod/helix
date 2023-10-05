@@ -14,14 +14,13 @@ use crate::{
 
 use arc_swap::access::DynGuard;
 use helix_core::{
-    chars::char_is_line_ending,
     diagnostic::NumberOrString,
     graphemes::{next_grapheme_boundary, prev_grapheme_boundary},
     movement::Direction,
     syntax::{self, HighlightEvent},
     text_annotations::TextAnnotations,
     unicode::width::UnicodeWidthStr,
-    visual_offset_from_block, Change, Position, Range, Selection, Tendril, Transaction,
+    visual_offset_from_block, Change, Position, Range, Selection, Transaction,
 };
 use helix_view::{
     annotations::diagnostics::DiagnosticFilter,
@@ -32,7 +31,7 @@ use helix_view::{
     keyboard::{KeyCode, KeyModifiers},
     view_index_to_identifier, Document, Editor, Theme, View,
 };
-use std::{mem::take, num::NonZeroUsize, ops::Deref, path::PathBuf, rc::Rc, sync::Arc};
+use std::{mem::take, num::NonZeroUsize, path::PathBuf, rc::Rc, sync::Arc};
 
 use tui::{buffer::Buffer as Surface, text::Span};
 
@@ -834,7 +833,7 @@ impl EditorView {
         config: DynGuard<Config>,
     ) {
         log::info!("Render overlay line move locations");
-        let primary_style = theme
+        let _primary_style = theme
             .try_get_exact("ui.cursorcolumn.primary")
             .or_else(|| theme.try_get_exact("ui.cursorcolumn"))
             .unwrap_or_else(|| theme.get("ui.cursorline.primary"));
@@ -876,7 +875,7 @@ impl EditorView {
                 continue;
             }
             last_line = Some(line_row);
-            let mut visual_offset_render = |abspos, jump_anchor, after, doc_row, row_adj| {
+            let mut visual_offset_render = |abspos, jump_anchor, _after, doc_row, row_adj| {
                 match helix_core::visual_offset_from_anchor(
                     doc.text().slice(..),
                     doc.text().line_to_char(doc_row),

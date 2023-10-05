@@ -1611,7 +1611,7 @@ fn extend_prev_char(cx: &mut Context) {
     find_char(cx, Direction::Backward, true, true)
 }
 
-fn to_move_location(cx: &mut Context, inclusive: bool, extend: bool) {
+fn to_move_location(cx: &mut Context, _inclusive: bool, extend: bool) {
     /* Enter to location mode */
     cx.editor.show_line_move_locations = true;
     cx.on_next_key(move |cx, event| {
@@ -1619,7 +1619,7 @@ fn to_move_location(cx: &mut Context, inclusive: bool, extend: bool) {
             let config = cx.editor.config();
             let (view, doc) = current!(cx.editor);
 
-            let selection = doc.selection(view.id);
+            let _selection = doc.selection(view.id);
             let mut jump_to = |anchors, after, after_sign: isize| {
                 let text = doc.text().slice(..);
                 let transformed_selection = doc.selection(view.id).clone().transform(|range| {

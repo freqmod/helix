@@ -496,10 +496,6 @@ impl View {
         text_annotations
     }
 
-    /* Show temporary annotations at the line above the current cursor
-    (or below if the cursor is at the topmost line) */
-    pub fn annotate_adjacent_line(&self, contents: &str) {}
-
     pub fn text_pos_at_screen_coords(
         &self,
         doc: &Document,
