@@ -291,6 +291,8 @@ impl MappableCommand {
         extend_prev_char, "Extend to previous occurrence of char",
         find_to_move_location, "Find to word boundary determined by displayed hints",
         till_move_location, "Move till word boundary determined by displayed hints",
+        find_single_move_location, "Find to single cursor word boundary determined by displayed hints",
+        till_single_move_location, "Move single cursor till word boundary determined by displayed hints",
         extend_to_move_location, "Extend to word boundary determined by displayed hints",
         extend_till_move_location, "Extend till word boundary determined by displayed hints",
         repeat_last_motion, "Repeat last motion",
@@ -1611,9 +1613,10 @@ fn extend_prev_char(cx: &mut Context) {
     find_char(cx, Direction::Backward, true, true)
 }
 
-fn to_move_location(cx: &mut Context, _inclusive: bool, extend: bool) {
+fn to_move_location(cx: &mut Context, inclusive: bool, extend: bool, single: bool) {
     /* Enter to location mode */
     cx.editor.show_line_move_locations = true;
+    let inclusive_offset = if inclusive { 1 } else { 0 };
     cx.on_next_key(move |cx, event| {
         if let Some(ch) = event.char() {
             let config = cx.editor.config();
@@ -1635,14 +1638,18 @@ fn to_move_location(cx: &mut Context, _inclusive: bool, extend: bool) {
                         }
                     });
                     if let Some(destination_cursor) = destination_cursor {
-                        if extend {
-                            range.put_cursor(text, destination_cursor, true)
+                        if single {
+                            Range::point(destination_cursor + inclusive_offset)
                         } else {
-                            Range::point(range.cursor(text)).put_cursor(
-                                text,
-                                destination_cursor,
-                                true,
-                            )
+                            if extend {
+                                range.put_cursor(text, destination_cursor, true)
+                            } else {
+                                Range::point(range.cursor(text)).put_cursor(
+                                    text,
+                                    destination_cursor,
+                                    true,
+                                )
+                            }
                         }
                     } else {
                         range
@@ -1666,16 +1673,22 @@ fn to_move_location(cx: &mut Context, _inclusive: bool, extend: bool) {
 }
 
 fn find_to_move_location(cx: &mut Context) {
-    to_move_location(cx, true, false);
+    to_move_location(cx, true, false, false);
 }
 fn till_move_location(cx: &mut Context) {
-    to_move_location(cx, false, false);
+    to_move_location(cx, false, false, false);
 }
 fn extend_to_move_location(cx: &mut Context) {
-    to_move_location(cx, true, true);
+    to_move_location(cx, true, true, false);
 }
 fn extend_till_move_location(cx: &mut Context) {
-    to_move_location(cx, false, true);
+    to_move_location(cx, false, true, false);
+}
+fn find_single_move_location(cx: &mut Context) {
+    to_move_location(cx, true, false, true);
+}
+fn till_single_move_location(cx: &mut Context) {
+    to_move_location(cx, false, false, true);
 }
 
 fn repeat_last_motion(cx: &mut Context) {
