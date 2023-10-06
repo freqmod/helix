@@ -349,7 +349,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
     });
     let mut select = normal.clone();
     select.merge_nodes(keymap!({ "Select mode"
-        "h" | "left" => extend_char_left,
+        "left" => extend_char_left,
         "j" | "down" => extend_visual_line_down,
         "k" | "up" => extend_visual_line_up,
         "l" | "right" => extend_char_right,
@@ -378,6 +378,9 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "end" => extend_to_line_end,
         "esc" => exit_select_mode,
         "S-home" => goto_first_nonwhitespace,
+
+        "h" => extend_till_move_location,
+        "H" => extend_to_move_location,
 
         "v" => normal_mode,
         "u" => undo_selection,
