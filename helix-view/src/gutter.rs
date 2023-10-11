@@ -148,7 +148,12 @@ pub fn line_numbers<'doc>(
     let text = doc.text().slice(..);
     let width = line_numbers_width(view, doc);
 
-    let last_line_in_view = view.estimate_last_doc_line(doc);
+    let doc_text = doc.text().slice(..);
+    let first_line_in_view = doc_text.char_to_line(view.offset.anchor.min(doc_text.len_chars()));
+    // Saturating subs to make it inclusive zero indexing.
+    let last_line_in_view = (first_line_in_view + view.inner_height())
+        .min(doc_text.len_lines())
+        .saturating_sub(1);
 
     // Whether to draw the line number for the last line of the
     // document or not.  We only draw it if it's not an empty line.
@@ -171,17 +176,7 @@ pub fn line_numbers<'doc>(
                 Some(linenr)
             } else {
                 use crate::{document::Mode, editor::LineNumber};
-
-                let relative = line_number == LineNumber::Relative
-                    && mode != Mode::Insert
-                    && is_focused
-                    && current_line != line;
-
-                let display_num = if relative {
-                    abs_diff(current_line, line)
-                } else {
-                    line + 1
-                };
+                // TODO: If we are displaying jump offests, overwrite the line number type here and show the offset
 
                 let style = if selected && is_focused {
                     linenr_select
@@ -189,10 +184,41 @@ pub fn line_numbers<'doc>(
                     linenr
                 };
 
-                if first_visual_line {
-                    write!(out, "{:>1$}", display_num, width).unwrap();
+                if editor.show_line_jump_offsets && !selected {
+                    let config = editor.config();
+                    let jump_anchors = [
+                        config.jump_anchors_before.as_ref().unwrap().as_str(),
+                        config.jump_anchors_after.as_ref().unwrap().as_str(),
+                    ];
+                    let display_char = doc.line_char(
+                        jump_anchors,
+                        line,
+                        current_line,
+                        first_line_in_view,
+                        last_line_in_view,
+                    );
+                    let display_char = display_char.unwrap_or(' ');
+                    if first_visual_line {
+                        write!(out, "{:>1$}", display_char, width).unwrap();
+                    } else {
+                        write!(out, "{:>1$}", " ", width).unwrap();
+                    }
                 } else {
-                    write!(out, "{:>1$}", " ", width).unwrap();
+                    let relative = line_number == LineNumber::Relative
+                        && mode != Mode::Insert
+                        && is_focused
+                        && current_line != line;
+
+                    let display_num = if relative {
+                        abs_diff(current_line, line)
+                    } else {
+                        line + 1
+                    };
+                    if first_visual_line {
+                        write!(out, "{:>1$}", display_num, width).unwrap();
+                    } else {
+                        write!(out, "{:>1$}", " ", width).unwrap();
+                    }
                 }
 
                 first_visual_line.then_some(style)

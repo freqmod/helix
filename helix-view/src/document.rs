@@ -2166,6 +2166,58 @@ impl Document {
     pub fn reset_all_inlay_hints(&mut self) {
         self.inlay_hints = Default::default();
     }
+
+    pub fn line_char(
+        &self,
+        jump_anchors: [&str; 2],
+        processing_line: usize,
+        current_line: usize,
+        first_line_in_view: usize,
+        last_line_in_view: usize,
+    ) -> Option<char> {
+        let offset_from_current = processing_line as isize - current_line as isize;
+        let jumplist = if offset_from_current < 0 {
+            jump_anchors[0]
+        } else {
+            jump_anchors[1]
+        };
+        let absolute_offset = offset_from_current.abs() as usize;
+        if absolute_offset == 0 {
+            return None;
+        }
+        /* This code assumes jumplist only contains 1 byte characters */
+        if absolute_offset <= jumplist.len() {
+            jumplist.chars().skip(absolute_offset - 1).next()
+        } else {
+            /* Try to wrap the other jumplist around the screen and see
+            if there are any values that can be printed */
+            let alternative_jumplist = if offset_from_current > 0 {
+                jump_anchors[0]
+            } else {
+                jump_anchors[1]
+            };
+
+            let extra_offset = absolute_offset - jumplist.len();
+            let numbers_excess = if offset_from_current < 0 {
+                last_line_in_view - current_line
+            } else {
+                current_line - first_line_in_view
+            }
+            .saturating_sub(1);
+            let alternative_offset =
+                if alternative_jumplist.len().saturating_sub(extra_offset) > numbers_excess {
+                    Some(alternative_jumplist.len() - extra_offset)
+                } else {
+                    None
+                };
+            alternative_offset
+                .map(|alternative_offset| {
+                    alternative_jumplist.chars().skip(alternative_offset).next()
+                })
+                .flatten()
+        }
+    }
+
     pub fn line_move_locations<F>(
         &self,
         jump_anchors: &str,

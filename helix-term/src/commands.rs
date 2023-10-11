@@ -251,6 +251,7 @@ impl MappableCommand {
         move_char_right, "Move right",
         move_line_up, "Move up",
         move_line_down, "Move down",
+        move_line_key, "Move to line determined by jump character",
         move_visual_line_up, "Move up",
         move_visual_line_down, "Move down",
         extend_char_left, "Extend left",
@@ -664,6 +665,90 @@ fn move_impl(cx: &mut Context, move_fn: MoveFn, dir: Direction, behaviour: Movem
 }
 
 use helix_core::movement::{move_horizontally, move_vertically};
+
+fn move_line_key(cx: &mut Context) {
+    /* Enter to location mode */
+    cx.editor.show_line_jump_offsets = true;
+    cx.on_next_key(move |cx, event| {
+        if let Some(ch) = event.char() {
+            let config = cx.editor.config();
+            let (view, doc) = current!(cx.editor);
+            let doc_text = doc.text().slice(..);
+            let first_line_in_view =
+                doc_text.char_to_line(view.offset.anchor.min(doc_text.len_chars()));
+            // Saturating subs to make it inclusive zero indexing.
+            let last_line_in_view = (first_line_in_view + view.inner_height())
+                .min(doc_text.len_lines())
+                .saturating_sub(1);
+            let current_line = doc
+                .text()
+                .char_to_line(doc.selection(view.id).primary().cursor(doc_text));
+
+            let jump_anchors = [
+                config.jump_anchors_before.as_ref().unwrap().as_str(),
+                config.jump_anchors_after.as_ref().unwrap().as_str(),
+            ];
+            let mut selected_line = None;
+            for anchor in if jump_anchors[0].contains(ch) {
+                [0, 1]
+            } else {
+                [1, 0]
+            } {
+                let mut idx_offset = 1;
+                let anchor_sign: isize = if anchor == 0 { 1 } else { -1 };
+                loop {
+                    if anchor == 1 && current_line < idx_offset {
+                        break;
+                    }
+                    let processing_line =
+                        (current_line as isize + (anchor_sign * idx_offset as isize)) as usize;
+                    if let Some(line_char) = doc.line_char(
+                        jump_anchors,
+                        processing_line,
+                        current_line,
+                        first_line_in_view,
+                        last_line_in_view,
+                    ) {
+                        if line_char == ch {
+                            selected_line = Some(processing_line);
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                    idx_offset += 1;
+                }
+                if selected_line.is_some() {
+                    break;
+                }
+            }
+            if let Some(selected_line) = selected_line {
+                /* TODO: Should whole line annotations be taken into acocunt here? */
+                let text = doc.text().slice(..);
+                let text_fmt = doc.text_format(view.inner_area(doc).width, None);
+                let mut annotations = view.text_annotations(doc, None);
+                let move_line_offset = selected_line as isize - current_line as isize;
+                let selection = doc.selection(view.id).clone().transform(|range| {
+                    move_vertically(
+                        text,
+                        range,
+                        if move_line_offset < 0 {
+                            Direction::Backward
+                        } else {
+                            Direction::Forward
+                        },
+                        move_line_offset.abs() as usize,
+                        Movement::Move,
+                        &text_fmt,
+                        &mut annotations,
+                    )
+                });
+                doc.set_selection(view.id, selection);
+            }
+        }
+        cx.editor.show_line_jump_offsets = false;
+    });
+}
 
 fn move_char_left(cx: &mut Context) {
     move_impl(cx, move_horizontally, Direction::Backward, Movement::Move)

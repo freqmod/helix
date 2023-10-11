@@ -987,8 +987,8 @@ impl Default for Config {
             jump_label_alphabet: ('a'..='z').collect(),
             inline_diagnostics: InlineDiagnosticsConfig::default(),
             end_of_line_diagnostics: DiagnosticFilter::Disable,
-            jump_anchors_before: Some(String::from("tsradpfwvcxgqbz54321!@#$%")), // colemak
-            jump_anchors_after: Some(String::from("neiohluym,.kj;09876^&*()")),   //colemak
+            jump_anchors_before: Some(String::from("tsradpfwvcxgqbz54321TSRADPFWVCXGQBZ!@#$%")), // colemak
+            jump_anchors_after: Some(String::from("neiohluym,.kj;09876NEIOHLUYM<?KJ:^&*()")), //colemak
         }
     }
 }
@@ -1061,6 +1061,7 @@ pub struct Editor {
     pub autoinfo: Option<Info>,
     pub show_window_ids: bool,
     pub show_line_move_locations: bool,
+    pub show_line_jump_offsets: bool,
 
     pub config: Arc<dyn DynAccess<Config> + Send + Sync>,
     pub auto_pairs: Option<AutoPairs>,
@@ -1197,6 +1198,7 @@ impl Editor {
             autoinfo: None,
             show_window_ids: false,
             show_line_move_locations: false,
+            show_line_jump_offsets: false,
             idle_timer: Box::pin(sleep(conf.idle_timeout)),
             redraw_timer: Box::pin(sleep(Duration::MAX)),
             last_motion: None,
