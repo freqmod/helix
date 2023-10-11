@@ -258,6 +258,7 @@ impl MappableCommand {
         extend_char_right, "Extend right",
         extend_line_up, "Extend up",
         extend_line_down, "Extend down",
+        extend_line_key, "Extend to line determined by jump character",
         extend_visual_line_up, "Extend up",
         extend_visual_line_down, "Extend down",
         copy_selection_on_next_line, "Copy selection on next line",
@@ -666,7 +667,7 @@ fn move_impl(cx: &mut Context, move_fn: MoveFn, dir: Direction, behaviour: Movem
 
 use helix_core::movement::{move_horizontally, move_vertically};
 
-fn move_line_key(cx: &mut Context) {
+fn move_line_key_impl(cx: &mut Context, behaviour: Movement) {
     /* Enter to location mode */
     cx.editor.show_line_jump_offsets = true;
     cx.on_next_key(move |cx, event| {
@@ -738,7 +739,7 @@ fn move_line_key(cx: &mut Context) {
                             Direction::Forward
                         },
                         move_line_offset.abs() as usize,
-                        Movement::Move,
+                        behaviour,
                         &text_fmt,
                         &mut annotations,
                     )
@@ -748,6 +749,13 @@ fn move_line_key(cx: &mut Context) {
         }
         cx.editor.show_line_jump_offsets = false;
     });
+}
+
+fn move_line_key(cx: &mut Context) {
+    move_line_key_impl(cx, Movement::Move)
+}
+fn extend_line_key(cx: &mut Context) {
+    move_line_key_impl(cx, Movement::Extend)
 }
 
 fn move_char_left(cx: &mut Context) {

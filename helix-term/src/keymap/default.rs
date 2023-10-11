@@ -379,7 +379,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
         "end" => extend_to_line_end,
         "esc" => exit_select_mode,
         "S-home" => goto_first_nonwhitespace,
-        "l" => move_line_key,
+        "l" => extend_line_key,
 
         "h" => extend_till_move_location,
         "H" => extend_to_move_location,
