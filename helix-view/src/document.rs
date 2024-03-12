@@ -2233,7 +2233,9 @@ impl Document {
         } else {
             char_iter_raw.reversed()
         };
-        let mut alphanumeric_state = self.text.char(cursor).is_alphabetic();
+        let start_char = self.text.char(cursor);
+        let mut alphanumeric_state = start_char.is_alphabetic();
+        let mut case_state = start_char.is_uppercase();
         let mut anchor_idx = 0;
         let mut jump_before_iter = jump_anchors.chars();
         let mut last_location: Option<usize> = None;
@@ -2241,9 +2243,19 @@ impl Document {
             if helix_core::chars::char_is_line_ending(char) {
                 break;
             }
-            if char.is_alphanumeric() != alphanumeric_state {
+            let state_changed = if char.is_alphanumeric() != alphanumeric_state {
                 log::info!("State change x:{}", cidx);
                 alphanumeric_state = char.is_alphabetic();
+                case_state = char.is_uppercase();
+                true
+            } else if alphanumeric_state {
+                let case_state_old = case_state;
+                case_state = char.is_uppercase();
+                case_state != case_state_old
+            } else {
+                false
+            };
+            if state_changed {
                 /* Skip adjacent locations */
                 if last_location
                     .map(|ll| cidx.saturating_sub(ll) > 2)
