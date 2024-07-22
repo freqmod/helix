@@ -1505,9 +1505,11 @@ dependencies = [
 name = "helix-view"
 version = "24.7.0"
 dependencies = [
+ "ahash",
  "anyhow",
  "arc-swap",
  "bitflags 2.6.0",
+ "bytes",
  "chardetng",
  "clipboard-win",
  "crossterm",

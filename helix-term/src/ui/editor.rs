@@ -98,7 +98,6 @@ impl EditorView {
 
         let mut text_annotations = view.text_annotations(doc, Some(theme));
         let mut decorations = DecorationManager::default();
-        let mut translated_positions: Vec<TranslatedPosition> = Vec::new();
 
         if is_focused && config.cursorline {
             decorations.add_decoration(Self::cursorline(doc, view, theme));

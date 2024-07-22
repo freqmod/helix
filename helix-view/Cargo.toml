@@ -24,6 +24,7 @@ helix-lsp = { path = "../helix-lsp" }
 helix-dap = { path = "../helix-dap" }
 helix-vcs = { path = "../helix-vcs" }
 
+ahash = "0.8.11"
 bitflags = "2.6"
 anyhow = "1"
 crossterm = { version = "0.27", optional = true }

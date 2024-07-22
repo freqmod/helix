@@ -725,25 +725,27 @@ fn move_line_key_impl(cx: &mut Context, behaviour: Movement) {
             }
             if let Some(selected_line) = selected_line {
                 /* TODO: Should whole line annotations be taken into acocunt here? */
-                let text = doc.text().slice(..);
-                let text_fmt = doc.text_format(view.inner_area(doc).width, None);
-                let mut annotations = view.text_annotations(doc, None);
-                let move_line_offset = selected_line as isize - current_line as isize;
-                let selection = doc.selection(view.id).clone().transform(|range| {
-                    move_vertically(
-                        text,
-                        range,
-                        if move_line_offset < 0 {
-                            Direction::Backward
-                        } else {
-                            Direction::Forward
-                        },
-                        move_line_offset.abs() as usize,
-                        behaviour,
-                        &text_fmt,
-                        &mut annotations,
-                    )
-                });
+                let selection = {
+                    let text = doc.text().slice(..);
+                    let text_fmt = doc.text_format(view.inner_area(doc).width, None);
+                    let mut annotations = view.text_annotations(doc, None);
+                    let move_line_offset = selected_line as isize - current_line as isize;
+                    doc.selection(view.id).clone().transform(|range| {
+                        move_vertically(
+                            text,
+                            range,
+                            if move_line_offset < 0 {
+                                Direction::Backward
+                            } else {
+                                Direction::Forward
+                            },
+                            move_line_offset.abs() as usize,
+                            behaviour,
+                            &text_fmt,
+                            &mut annotations,
+                        )
+                    })
+                };
                 doc.set_selection(view.id, selection);
             }
         }
